@@ -10,6 +10,7 @@ import time
 import sys
 from enum import Enum
 from typing import Optional, Tuple
+import hashlib
 
 # ============ CÓDIGOS TFTP ============
 class TFTP_OPCODE(Enum):
@@ -35,6 +36,8 @@ TFTP_PORT = 69
 BLOCK_SIZE = 512
 TIMEOUT_SEC = 5
 MAX_RETRIES = 5
+# Timeout (seconds) to wait for the final LUS (100%) after receiving the 50% LUS
+FINAL_LUS_TIMEOUT = 120
 
 # ============ STATUS ARINC ============
 ARINC_STATUS_ACCEPTED = 0x0001
@@ -413,10 +416,16 @@ def test_tftp_connection(server_ip: str):
                                                         if offset >= len(file_data):
                                                             print(f"[✓] Transferência de {requested} concluída")
                                                             
-                                                            # Enviar pacote com hash zerado (para teste)
-                                                            hash_packet = struct.pack("!HH", TFTP_OPCODE.DATA.value, block_num + 1) + bytes(32)
+                                                            # Enviar pacote com hash real do arquivo
+                                                            try:
+                                                                real_hash = hashlib.sha256(file_data).digest()
+                                                            except Exception as e:
+                                                                print(f"[✗] Falha ao calcular hash do arquivo: {e}")
+                                                                real_hash = bytes(32)
+
+                                                            hash_packet = struct.pack("!HH", TFTP_OPCODE.DATA.value, block_num + 1) + real_hash
                                                             client.sock.sendto(hash_packet, (rrq_addr[0], rrq_addr[1]))
-                                                            print(f"[✓] Hash de verificação enviado (zerado para teste)")
+                                                            print(f"[✓] Hash de verificação enviado (SHA-256: {real_hash.hex()})")
                                                             
                                                             # Aguardar ACK do hash
                                                             try:
@@ -434,15 +443,30 @@ def test_tftp_connection(server_ip: str):
                                                             print("\n[...] Aguardando atualizações de progresso (LUS)...")
                                                             
                                                             for expected_progress in [50, 100]:
+                                                                # Only increase the socket timeout for the final LUS (100%)
+                                                                restore_timeout = False
+                                                                old_timeout = None
+                                                                if expected_progress == 100:
+                                                                    try:
+                                                                        old_timeout = client.sock.gettimeout()
+                                                                    except Exception:
+                                                                        old_timeout = None
+                                                                    try:
+                                                                        client.sock.settimeout(FINAL_LUS_TIMEOUT)
+                                                                        restore_timeout = True
+                                                                    except Exception:
+                                                                        # If we cannot set timeout, continue with default
+                                                                        restore_timeout = False
+
                                                                 try:
                                                                     print(f"\n[...] Aguardando LUS com progresso {expected_progress}%...")
                                                                     wrq_data, wrq_addr = client.sock.recvfrom(516)
-                                                                    
+
                                                                     if len(wrq_data) >= 4 and struct.unpack("!H", wrq_data[:2])[0] == TFTP_OPCODE.WRQ.value:
                                                                         # Envia ACK para o WRQ (bloco 0)
                                                                         ack_pkt = struct.pack("!HH", TFTP_OPCODE.ACK.value, 0)
                                                                         client.sock.sendto(ack_pkt, (wrq_addr[0], wrq_addr[1]))
-                                                                        
+
                                                                         # Recebe o DATA do LUS
                                                                         data_pkt, _ = client.sock.recvfrom(516)
                                                                         if len(data_pkt) >= 4:
@@ -452,19 +476,26 @@ def test_tftp_connection(server_ip: str):
                                                                                 # Verifica o progresso no LUS
                                                                                 load_list_ratio = lus_data[-3:].decode('ascii')
                                                                                 progress = int(load_list_ratio)
-                                                                                
+
                                                                                 # Envia ACK para o bloco de dados
                                                                                 ack_pkt = struct.pack("!HH", TFTP_OPCODE.ACK.value, block)
                                                                                 client.sock.sendto(ack_pkt, (wrq_addr[0], wrq_addr[1]))
-                                                                                
+
                                                                                 print(f"[✓] LUS recebido - Progresso: {progress}%")
                                                                                 if progress != expected_progress:
                                                                                     print(f"[!] Progresso inesperado: esperado {expected_progress}%, recebido {progress}%")
-                                                                
+
                                                                 except socket.timeout:
                                                                     print(f"[✗] Timeout aguardando LUS {expected_progress}%")
                                                                 except Exception as e:
                                                                     print(f"[✗] Erro ao processar LUS {expected_progress}%: {e}")
+                                                                finally:
+                                                                    # Restore original timeout if we changed it for the final LUS
+                                                                    if restore_timeout and old_timeout is not None:
+                                                                        try:
+                                                                            client.sock.settimeout(old_timeout)
+                                                                        except Exception:
+                                                                            pass
                                                             
                                                             break
                                                         block_num += 1

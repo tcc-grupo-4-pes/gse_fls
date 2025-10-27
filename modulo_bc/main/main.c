@@ -14,9 +14,11 @@
 #include "lwip/sockets.h"
 #include "lwip/inet.h"
 #include "mbedtls/sha256.h"
-#include "esp_heap_caps.h"
+#include "esp_spiffs.h"
 
 // ============ CONFIGURAÇÕES ============
+#define TEMP_MOUNT_POINT "/temp"
+#define STORAGE_MOUNT_POINT "/storage"
 #define WIFI_SSID "ESP32_TFTP"
 #define WIFI_PASS "12345678" // mínimo 8 caracteres para WPA2
 #define AP_IP "192.168.4.1"
@@ -45,6 +47,34 @@ typedef enum
 } arinc_op_status_code_t;                          // De acordo com tabela slide 38 arinc
 
 static const char *TAG = "B/C";
+
+// Função para montar partição SPIFFS
+esp_err_t mount_spiffs(const char *partition_label, const char *mount_point)
+{
+    ESP_LOGI(TAG, "Mounting SPIFFS partition %s at %s", partition_label, mount_point);
+
+    esp_vfs_spiffs_conf_t conf = {
+        .base_path = mount_point,
+        .partition_label = partition_label,
+        .max_files = 5,
+        .format_if_mount_failed = true};
+
+    esp_err_t ret = esp_vfs_spiffs_register(&conf);
+    if (ret != ESP_OK)
+    {
+        ESP_LOGE(TAG, "Failed to mount SPIFFS (%s)", esp_err_to_name(ret));
+        return ret;
+    }
+
+    size_t total = 0, used = 0;
+    ret = esp_spiffs_info(partition_label, &total, &used);
+    if (ret == ESP_OK)
+    {
+        ESP_LOGI(TAG, "Partition size: total: %d, used: %d", total, used);
+    }
+
+    return ESP_OK;
+}
 
 // ESTRUTURA DO PACOTE TFTP
 typedef struct
@@ -401,10 +431,23 @@ void make_wrq(int sock, struct sockaddr_in *client_addr, const char *lus_filenam
     ESP_LOGI(TAG, "Arquivo LUS enviado com sucesso");
 }
 
+// Para leitura do firmware do GSE
 void make_rrq(int sock, struct sockaddr_in *client_addr, const char *filename, unsigned char *hash)
 {
     ESP_LOGI(TAG, "Iniciando RRQ para %s", filename);
+    // Build temporary file path
+    char temp_path[512];
+    snprintf(temp_path, sizeof(temp_path), "%s/%s", TEMP_MOUNT_POINT, filename);
 
+    // Open temporary file for write
+    FILE *temp_file = fopen(temp_path, "wb");
+    if (!temp_file)
+    {
+        ESP_LOGE(TAG, "Failed to open temporary file for write: %s", temp_path);
+        return;
+    }
+
+    // Send RRQ packet
     tftp_packet_t rrq;
     rrq.opcode = htons(OP_RRQ);
     snprintf(rrq.request, sizeof(rrq.request), "%s%coctet%c", filename, 0, 0);
@@ -413,13 +456,16 @@ void make_rrq(int sock, struct sockaddr_in *client_addr, const char *filename, u
                (struct sockaddr *)client_addr, sizeof(*client_addr)) < 0)
     {
         ESP_LOGE(TAG, "Erro ao enviar RRQ: errno=%d", errno);
+        fclose(temp_file);
         return;
     }
 
-    // Buffer dinâmico para acumular o arquivo recebido
-    uint8_t *file_buf = NULL;
-    size_t file_cap = 0;
-    size_t file_len = 0;
+    // Prepare SHA-256 context to compute hash while receiving
+    mbedtls_sha256_context sha_ctx;
+    mbedtls_sha256_init(&sha_ctx);
+    mbedtls_sha256_starts(&sha_ctx, 0); // SHA-256
+
+    size_t total_bytes = 0;
 
     while (1)
     {
@@ -432,7 +478,9 @@ void make_rrq(int sock, struct sockaddr_in *client_addr, const char *filename, u
         if (n < 0)
         {
             ESP_LOGE(TAG, "Erro ao receber dados: errno=%d", errno);
-            break;
+            fclose(temp_file);
+            mbedtls_sha256_free(&sha_ctx);
+            return;
         }
 
         if (ntohs(data_pkt.opcode) != OP_DATA)
@@ -444,7 +492,19 @@ void make_rrq(int sock, struct sockaddr_in *client_addr, const char *filename, u
         int data_len = n - 4; // remove opcode(2) + block(2)
         ESP_LOGI(TAG, "Bloco %d recebido (%d bytes)", ntohs(data_pkt.data.block), data_len);
 
-        vTaskDelay(pdMS_TO_TICKS(10));
+        // Write data to temp file
+        if (fwrite(data_pkt.data.data, 1, data_len, temp_file) != (size_t)data_len)
+        {
+            ESP_LOGE(TAG, "Failed to write to temp file: %s", temp_path);
+            fclose(temp_file);
+            mbedtls_sha256_free(&sha_ctx);
+            return;
+        }
+
+        // Update SHA-256
+        mbedtls_sha256_update(&sha_ctx, data_pkt.data.data, data_len);
+        total_bytes += data_len;
+
         // Envia ACK para o bloco recebido
         tftp_packet_t ack;
         ack.opcode = htons(OP_ACK);
@@ -454,7 +514,9 @@ void make_rrq(int sock, struct sockaddr_in *client_addr, const char *filename, u
                    (struct sockaddr *)client_addr, sizeof(*client_addr)) < 0)
         {
             ESP_LOGE(TAG, "Erro ao enviar ACK: errno=%d", errno);
-            break;
+            fclose(temp_file);
+            mbedtls_sha256_free(&sha_ctx);
+            return;
         }
 
         // Se o bloco foi menor que BLOCK_SIZE, foi o último
@@ -462,30 +524,24 @@ void make_rrq(int sock, struct sockaddr_in *client_addr, const char *filename, u
             break;
     }
 
-    if (file_len == 0)
+    if (total_bytes == 0)
     {
         ESP_LOGW(TAG, "Nenhum dado recebido em make_rrq para %s", filename);
-        free(file_buf);
+        fclose(temp_file);
+        mbedtls_sha256_free(&sha_ctx);
         return;
     }
 
-    // Calcula SHA-256 do arquivo completo
-    mbedtls_sha256_context sha256_ctx;
-    mbedtls_sha256_init(&sha256_ctx);
-    mbedtls_sha256_starts(&sha256_ctx, 0); // 0 para SHA-256
-    mbedtls_sha256_update(&sha256_ctx, file_buf, file_len);
-    mbedtls_sha256_finish(&sha256_ctx, hash);
-    mbedtls_sha256_free(&sha256_ctx);
+    // Finaliza hash e guarda no buffer passado
+    mbedtls_sha256_finish(&sha_ctx, hash);
+    mbedtls_sha256_free(&sha_ctx);
 
-    ESP_LOGI(TAG, "Arquivo %s recebido com sucesso (%zu bytes)", filename, file_len);
-    ESP_LOGI(TAG, "SHA-256: ");
-    for (int i = 0; i < 32; i++)
-    {
-        printf("%02x", hash[i]);
-    }
-    printf("\n");
-    free(file_buf);
+    // Fechar arquivo temporário (permanece em /temp para verificação e armazenamento final posterior)
+    fclose(temp_file);
+
+    ESP_LOGI(TAG, "Arquivo %s recebido em %s (%u bytes). Hash calculado.", filename, TEMP_MOUNT_POINT, (unsigned)total_bytes);
 }
+
 void main_task(void *pvParameters)
 {
     int sock = socket(AF_INET, SOCK_DGRAM, 0);
@@ -557,7 +613,6 @@ void main_task(void *pvParameters)
             ESP_LOGW(TAG, "Opcode desconhecido recebido: %d", opcode);
         }
 
-        vTaskDelay(pdMS_TO_TICKS(100));
 
         lus_data_t lus_data;
         memset(&lus_data, 0, sizeof(lus_data)); // Zera toda a estrutura
@@ -648,8 +703,58 @@ void main_task(void *pvParameters)
 
             make_wrq(sock, &client_addr, "INTERMEDIATE_LOAD.LUS", &intermediate_lus_data);
 
-            // armazena arquivo na partição SPIFFS
-            
+            // armazena arquivo na partição SPIFFS: move/copia de /temp para /storage
+            {
+                char temp_path[512];
+                char final_path[512];
+                snprintf(temp_path, sizeof(temp_path), "%s/%s", TEMP_MOUNT_POINT, g_lur_info.header_filename);
+                snprintf(final_path, sizeof(final_path), "%s/%s", STORAGE_MOUNT_POINT, g_lur_info.header_filename);
+
+                FILE *src = fopen(temp_path, "rb");
+                if (!src)
+                {
+                    ESP_LOGE(TAG, "Falha ao abrir arquivo temporario para copia: %s", temp_path);
+                }
+                else
+                {
+                    FILE *dst = fopen(final_path, "wb");
+                    if (!dst)
+                    {
+                        ESP_LOGE(TAG, "Falha ao abrir arquivo final para escrita: %s", final_path);
+                        fclose(src);
+                    }
+                    else
+                    {
+                        uint8_t buf[1024];
+                        size_t r;
+                        bool copy_ok = true;
+                        while ((r = fread(buf, 1, sizeof(buf), src)) > 0)
+                        {
+                            if (fwrite(buf, 1, r, dst) != r)
+                            {
+                                ESP_LOGE(TAG, "Erro ao escrever em %s", final_path);
+                                copy_ok = false;
+                                break;
+                            }
+                        }
+                        fclose(src);
+                        fclose(dst);
+                        if (copy_ok)
+                        {
+                            // Remove temporário
+                            if (unlink(temp_path) != 0)
+                            {
+                                ESP_LOGW(TAG, "Nao foi possivel remover temporario %s", temp_path);
+                            }
+                            else
+                            {
+                                ESP_LOGI(TAG, "Arquivo movido para storage: %s", final_path);
+                            }
+                        }
+                    }
+                }
+            }
+
             // Envio do LUS final
             lus_data_t final_lus_data;
             memset(&final_lus_data, 0, sizeof(final_lus_data)); // Zera toda a estrutura
@@ -676,10 +781,24 @@ void main_task(void *pvParameters)
 void app_main(void)
 {
     ESP_LOGI(TAG, "Iniciando ESP32");
-    
 
     nvs_flash_init();
     wifi_init_softap();
+
+    // Mount both SPIFFS partitions
+    esp_err_t ret = mount_spiffs("temp", TEMP_MOUNT_POINT);
+    if (ret != ESP_OK)
+    {
+        ESP_LOGE(TAG, "Failed to mount temporary partition");
+        return;
+    }
+
+    ret = mount_spiffs("storage", STORAGE_MOUNT_POINT);
+    if (ret != ESP_OK)
+    {
+        ESP_LOGE(TAG, "Failed to mount storage partition");
+        return;
+    }
 
     xTaskCreate(main_task, "main", 16384, NULL, 5, NULL);
 }
