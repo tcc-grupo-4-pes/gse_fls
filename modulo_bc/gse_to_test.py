@@ -201,13 +201,17 @@ class TFTPClient:
 def parse_lui_response(data: bytes) -> dict:
     """
     Parseia resposta LUI ARINC 615A
-    Formato: [status(2)][text\0]
+    Formato: [file_length(4)][protocol_version(2)][status_code(2)][desc_length(1)][description(n)]
     """
-    if len(data) < 2:
+    if len(data) < 9:
         return {"error": "Dados insuficientes"}
     
-    status = struct.unpack("!H", data[0:2])[0]
-    text = data[2:].decode('utf-8', errors='ignore').rstrip('\0')
+    # Parse dos campos na ordem correta
+    file_length = struct.unpack("!L", data[0:4])[0]
+    protocol_version = data[4:6].decode('ascii', errors='ignore')
+    status_code = struct.unpack("!H", data[6:8])[0]
+    desc_length = data[8]
+    description = data[9:9+desc_length].decode('ascii', errors='ignore')
     
     status_map = {
         ARINC_STATUS_ACCEPTED: "Operação Aceita",
@@ -217,9 +221,12 @@ def parse_lui_response(data: bytes) -> dict:
     }
     
     return {
-        "status_code": f"0x{status:04x}",
-        "status_name": status_map.get(status, "Desconhecido"),
-        "message": text
+        "file_length": file_length,
+        "protocol_version": protocol_version,
+        "status_code": f"0x{status_code:04x}",
+        "status_name": status_map.get(status_code, "Desconhecido"),
+        "desc_length": desc_length,
+        "description": description
     }
 
 
@@ -251,8 +258,15 @@ def test_tftp_connection(server_ip: str):
             # Parseia resposta ARINC
             lui_response = parse_lui_response(data)
             print(f"\nResposta ARINC 615A (LUI):")
-            for key, value in lui_response.items():
-                print(f"  {key}: {value}")
+            if "error" in lui_response:
+                print(f"  Erro: {lui_response['error']}")
+            else:
+                print(f"  File Length: {lui_response['file_length']}")
+                print(f"  Protocol Version: {lui_response['protocol_version']}")
+                print(f"  Status Code: {lui_response['status_code']}")
+                print(f"  Status: {lui_response['status_name']}")
+                print(f"  Description Length: {lui_response['desc_length']}")
+                print(f"  Description: {lui_response['description']}")
                 
             # Aguarda e recebe o arquivo LUS do Target
             print(f"\n[...] Aguardando arquivo LUS do Target...")

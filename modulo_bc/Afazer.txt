@@ -1,7 +1,8 @@
+Obs.: Tem que colocar a partition table como custom e mudar o tamanho da flash do esp(padrão 2mb, aumentar para 4)
 Melhorias,modificações e pesquisa no B/C:
 
 - Porta Efêmera TFTP
-- Separar em componentes: 
+FEITO: Separar em componentes: 
     .wifi: configurações da criação do ponto de acesso
     .storage: mount_spiffs, transfer TEMP->FINAL
     .TFTP: 4 funções do wrq e rrq, tftp_packet_t, códigos define TFTP
