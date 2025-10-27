@@ -1,3 +1,3 @@
 idf_component_register(SRCS "main.c"
-                    PRIV_REQUIRES protocol_files
+                    REQUIRES spiffs esp_wifi nvs_flash mbedtls 
                     INCLUDE_DIRS ".")
