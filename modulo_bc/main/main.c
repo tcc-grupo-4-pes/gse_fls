@@ -16,7 +16,7 @@
 #include "lwip/inet.h"    // inet_ntoa
 
 static const char *TAG = "B/C";
-lur_data_t lur_file;
+lur_data_t lur_file; // variável global, usado depois pelo Make_RRQ para saber o nome do arquivo (fw.bin)
 
 void main_task(void *pvParameters)
 {
