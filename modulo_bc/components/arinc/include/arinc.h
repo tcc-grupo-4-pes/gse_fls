@@ -2,6 +2,7 @@
 #define ARINC_H
 
 #include <stdint.h>
+#include <stddef.h>
 
 // ARINC operation status codes
 typedef enum

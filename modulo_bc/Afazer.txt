@@ -1,21 +1,25 @@
 Obs.: Tem que colocar a partition table como custom e mudar o tamanho da flash do esp(padrão 2mb, aumentar para 4)
 Melhorias,modificações e pesquisa no B/C:
 
-- Porta Efêmera TFTP
+ Porta Efêmera TFTP FEITO
 FEITO: Separar em componentes: 
     .wifi: configurações da criação do ponto de acesso
     .storage: mount_spiffs, transfer TEMP->FINAL
     .TFTP: 4 funções do wrq e rrq, tftp_packet_t, códigos define TFTP
     .Arinc: parser dos arquivos LUR, LUI e LUS, ARINC_op_Status
+
 - Implementar verificação PN 
-- Implementar desafio para security 
+- Implementar desafio para security (Chave read only na partition_table)
 - Tratamento de abort
 - Tratamento de erro (o que fazer em cada momento?)
 - Verificar questões de timeouts de recebimento e envio
-- Deixar mais modular, separar TFTP e ARINC(Ex.: Implementação do LUI fora do handle_RRQ)
-- Função para preenchimento LUS/LUI
-- Modificar struct do LUR para versão completa
-- Na main_task, precisa de loop infinito? (1 transferência apenas)
+
+ Deixar mais modular, separar TFTP e ARINC(Ex.: Implementação do LUI fora do handle_RRQ) FEITO
+ Função para preenchimento LUS/LUI FEITO
+ Modificar struct do LUR para versão completa FEITO
+
+
+- Na main_task, precisa de loop infinito? (1 transferência apenas) 
 - Implementar e configurar estados
 - Modo de Manutenção
 

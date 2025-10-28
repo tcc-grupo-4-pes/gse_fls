@@ -13,6 +13,7 @@
 #include <string.h> // memset, memcmp
 #include <errno.h>
 #include "lwip/sockets.h" // socket, bind, sendto, recvfrom, close
+#include "lwip/inet.h"    // inet_ntoa
 
 static const char *TAG = "B/C";
 lur_data_t lur_file;
@@ -121,9 +122,15 @@ void main_task(void *pvParameters)
         }
         // Faz um RRQ para obter o arquivo com o nome obtido do LUR
         unsigned char hash[32]; // SHA-256
+
+        // CORREÇÃO: Salva o endereço original do cliente antes de make_rrq
+        // porque make_rrq modifica client_addr para o TID efêmero do servidor
+        struct sockaddr_in original_client_addr = client_addr;
+
         make_rrq(sock, &client_addr, lur_file.header_filename, hash);
 
         // Receber o hash com tftp e comparar com o calculado
+        // Hash vem do TID efêmero que make_rrq detectou
         if (recvfrom(sock, &req, sizeof(req), 0,
                      (struct sockaddr *)&client_addr, &addr_len) < 0)
         {
@@ -142,6 +149,12 @@ void main_task(void *pvParameters)
             continue;
         }
         ESP_LOGI(TAG, "ACK enviado para hash (bloco %d)", ntohs(req.data.block));
+
+        // CORREÇÃO: Restaura endereço original do cliente para envio de LUS
+        // LUS deve ser enviado para o socket principal do GSE, não para o TID efêmero
+        client_addr = original_client_addr;
+        ESP_LOGI(TAG, "Endereço do cliente restaurado para IP=%s, porta=%d",
+                 inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port));
 
         if (memcmp(req.data.data, hash, 32) != 0)
         {

@@ -24,10 +24,38 @@ void handle_rrq(int sock, struct sockaddr_in *client, char *filename)
         return;
     }
 
+    // Cria socket efêmero para transferência (protocolo TFTP padrão)
+    int transfer_sock = socket(AF_INET, SOCK_DGRAM, 0);
+    if (transfer_sock < 0)
+    {
+        ESP_LOGE(TAG, "Erro ao criar socket de transferência: errno=%d", errno);
+        return;
+    }
+
+    // Bind em porta efêmera (porta 0 = sistema escolhe)
+    struct sockaddr_in transfer_addr;
+    memset(&transfer_addr, 0, sizeof(transfer_addr));
+    transfer_addr.sin_family = AF_INET;
+    transfer_addr.sin_port = htons(0); // Porta efêmera
+    transfer_addr.sin_addr.s_addr = htonl(INADDR_ANY);
+
+    if (bind(transfer_sock, (struct sockaddr *)&transfer_addr, sizeof(transfer_addr)) < 0)
+    {
+        ESP_LOGE(TAG, "Erro no bind do socket de transferência: errno=%d", errno);
+        close(transfer_sock);
+        return;
+    }
+
+    // Obtém a porta efêmera atribuída
+    socklen_t addr_len = sizeof(transfer_addr);
+    getsockname(transfer_sock, (struct sockaddr *)&transfer_addr, &addr_len);
+    ESP_LOGI(TAG, "Socket de transferência criado na porta %d (TID)", ntohs(transfer_addr.sin_port));
+
     lui_data_t lui;
     if (init_lui(&lui, ARINC_STATUS_OP_ACCEPTED_NOT_STARTED, "Operation Accepted") != 0)
     {
         ESP_LOGE(TAG, "Falha ao inicializar LUI");
+        close(transfer_sock);
         return;
     }
 
@@ -36,6 +64,7 @@ void handle_rrq(int sock, struct sockaddr_in *client, char *filename)
     if (lui_buf == NULL)
     {
         ESP_LOGE(TAG, "Falha ao alocar memoria para LUI");
+        close(transfer_sock);
         return;
     }
 
@@ -54,7 +83,8 @@ void handle_rrq(int sock, struct sockaddr_in *client, char *filename)
         int chunk = (total_size - sent) < BLOCK_SIZE ? (total_size - sent) : BLOCK_SIZE;
         memcpy(pkt.data.data, (uint8_t *)lui_buf + sent, chunk);
 
-        ssize_t s = sendto(sock, &pkt, 4 + chunk, 0,
+        // Envia do socket efêmero para o cliente
+        ssize_t s = sendto(transfer_sock, &pkt, 4 + chunk, 0,
                            (struct sockaddr *)client, sizeof(*client));
         if (s < 0)
         {
@@ -74,13 +104,13 @@ void handle_rrq(int sock, struct sockaddr_in *client, char *filename)
         struct timeval tv;
         tv.tv_sec = TFTP_TIMEOUT_SEC;
         tv.tv_usec = 0;
-        setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+        setsockopt(transfer_sock, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
 
         tftp_packet_t ack;
         struct sockaddr_in ack_addr;
         socklen_t ack_len = sizeof(ack_addr);
 
-        ssize_t n = recvfrom(sock, &ack, sizeof(ack), 0,
+        ssize_t n = recvfrom(transfer_sock, &ack, sizeof(ack), 0,
                              (struct sockaddr *)&ack_addr, &ack_len);
 
         if (n > 0 && ntohs(ack.opcode) == OP_ACK && ntohs(ack.block) == block)
@@ -99,7 +129,8 @@ void handle_rrq(int sock, struct sockaddr_in *client, char *filename)
     }
 
     free(lui_buf);
-    ESP_LOGI(TAG, "RRQ concluido");
+    close(transfer_sock);
+    ESP_LOGI(TAG, "RRQ concluido, socket de transferência fechado");
 }
 
 void handle_wrq(int sock, struct sockaddr_in *client, char *filename, lur_data_t *lur_file)
@@ -112,15 +143,43 @@ void handle_wrq(int sock, struct sockaddr_in *client, char *filename, lur_data_t
         return;
     }
 
+    // Cria socket efêmero para transferência (protocolo TFTP padrão)
+    int transfer_sock = socket(AF_INET, SOCK_DGRAM, 0);
+    if (transfer_sock < 0)
+    {
+        ESP_LOGE(TAG, "Erro ao criar socket de transferência: errno=%d", errno);
+        return;
+    }
+
+    // Bind em porta efêmera
+    struct sockaddr_in transfer_addr;
+    memset(&transfer_addr, 0, sizeof(transfer_addr));
+    transfer_addr.sin_family = AF_INET;
+    transfer_addr.sin_port = htons(0); // Porta efêmera
+    transfer_addr.sin_addr.s_addr = htonl(INADDR_ANY);
+
+    if (bind(transfer_sock, (struct sockaddr *)&transfer_addr, sizeof(transfer_addr)) < 0)
+    {
+        ESP_LOGE(TAG, "Erro no bind do socket de transferência: errno=%d", errno);
+        close(transfer_sock);
+        return;
+    }
+
+    // Obtém a porta efêmera atribuída
+    socklen_t addr_len = sizeof(transfer_addr);
+    getsockname(transfer_sock, (struct sockaddr *)&transfer_addr, &addr_len);
+    ESP_LOGI(TAG, "Socket de transferência criado na porta %d (TID)", ntohs(transfer_addr.sin_port));
+
+    // Envia ACK(0) do socket efêmero para o cliente
     tftp_packet_t ack;
     ack.opcode = htons(OP_ACK);
     ack.block = htons(0);
-    sendto(sock, &ack, 4, 0, (struct sockaddr *)client, sizeof(*client));
+    sendto(transfer_sock, &ack, 4, 0, (struct sockaddr *)client, sizeof(*client));
 
     struct timeval tv;
     tv.tv_sec = TFTP_TIMEOUT_SEC;
     tv.tv_usec = 0;
-    setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+    setsockopt(transfer_sock, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
 
     uint16_t expected_block = 1;
     tftp_packet_t pkt;
@@ -132,7 +191,7 @@ void handle_wrq(int sock, struct sockaddr_in *client, char *filename, lur_data_t
 
     while (1)
     {
-        ssize_t n = recvfrom(sock, &pkt, sizeof(pkt), 0,
+        ssize_t n = recvfrom(transfer_sock, &pkt, sizeof(pkt), 0,
                              (struct sockaddr *)&recv_addr, &recv_len);
         if (n < 0)
         {
@@ -156,7 +215,7 @@ void handle_wrq(int sock, struct sockaddr_in *client, char *filename, lur_data_t
 
         ack.opcode = htons(OP_ACK);
         ack.block = htons(expected_block);
-        sendto(sock, &ack, 4, 0, (struct sockaddr *)client, sizeof(*client));
+        sendto(transfer_sock, &ack, 4, 0, (struct sockaddr *)client, sizeof(*client));
 
         ESP_LOGI(TAG, "Bloco %d recebido (%d bytes)", expected_block, data_len);
         expected_block++;
@@ -168,6 +227,7 @@ void handle_wrq(int sock, struct sockaddr_in *client, char *filename, lur_data_t
     if (total_received == 0)
     {
         ESP_LOGW(TAG, "Nenhum dado .LUR recebido");
+        close(transfer_sock);
         return;
     }
 
@@ -175,6 +235,7 @@ void handle_wrq(int sock, struct sockaddr_in *client, char *filename, lur_data_t
     if (parse_lur(lur_buf, total_received, lur_file) != 0)
     {
         ESP_LOGE(TAG, "Falha ao parsear LUR");
+        close(transfer_sock);
         return;
     }
 
@@ -183,12 +244,16 @@ void handle_wrq(int sock, struct sockaddr_in *client, char *filename, lur_data_t
     ESP_LOGI(TAG, "  Protocol version: %s", lur_file->protocol_version);
     ESP_LOGI(TAG, "  Header file name: %s", lur_file->header_filename);
     ESP_LOGI(TAG, "  Load Part Number: %s", lur_file->load_part_number);
+
+    close(transfer_sock);
+    ESP_LOGI(TAG, "WRQ concluido, socket de transferência fechado");
 }
 
 void make_wrq(int sock, struct sockaddr_in *client_addr, const char *lus_filename, const lus_data_t *lus_data)
 {
     ESP_LOGI(TAG, "Iniciando WRQ para envio de %s", lus_filename);
 
+    // Envia WRQ do socket principal (porta 69)
     tftp_packet_t wrq;
     wrq.opcode = htons(OP_WRQ);
     snprintf(wrq.request, sizeof(wrq.request), "%s%coctet%c", lus_filename, 0, 0);
@@ -200,6 +265,7 @@ void make_wrq(int sock, struct sockaddr_in *client_addr, const char *lus_filenam
         return;
     }
 
+    // Aguarda ACK(0) que virá da porta efêmera do cliente
     tftp_packet_t ack;
     struct sockaddr_in ack_addr;
     socklen_t ack_len = sizeof(ack_addr);
@@ -217,13 +283,17 @@ void make_wrq(int sock, struct sockaddr_in *client_addr, const char *lus_filenam
         return;
     }
 
+    // Cliente mudou para porta efêmera, salva o novo endereço
+    ESP_LOGI(TAG, "Cliente mudou para TID (porta) %d", ntohs(ack_addr.sin_port));
+
+    // Envia dados para a porta efêmera do cliente
     tftp_packet_t data_pkt;
     data_pkt.opcode = htons(OP_DATA);
     data_pkt.data.block = htons(1);
     memcpy(data_pkt.data.data, lus_data, sizeof(lus_data_t));
 
     if (sendto(sock, &data_pkt, 4 + sizeof(lus_data_t), 0,
-               (struct sockaddr *)client_addr, sizeof(*client_addr)) < 0)
+               (struct sockaddr *)&ack_addr, sizeof(ack_addr)) < 0)
     {
         ESP_LOGE(TAG, "Erro ao enviar dados LUS: errno=%d", errno);
         return;
@@ -258,6 +328,7 @@ void make_rrq(int sock, struct sockaddr_in *client_addr, const char *filename, u
         return;
     }
 
+    // Envia RRQ do socket principal (porta 69)
     tftp_packet_t rrq;
     rrq.opcode = htons(OP_RRQ);
     snprintf(rrq.request, sizeof(rrq.request), "%s%coctet%c", filename, 0, 0);
@@ -275,6 +346,8 @@ void make_rrq(int sock, struct sockaddr_in *client_addr, const char *filename, u
     mbedtls_sha256_starts(&sha_ctx, 0);
 
     size_t total_bytes = 0;
+    struct sockaddr_in server_tid_addr; // Porta efêmera do servidor (GSE)
+    int first_packet = 1;
 
     while (1)
     {
@@ -290,6 +363,14 @@ void make_rrq(int sock, struct sockaddr_in *client_addr, const char *filename, u
             fclose(temp_file);
             mbedtls_sha256_free(&sha_ctx);
             return;
+        }
+
+        // Primeiro pacote DATA vem da porta efêmera do servidor
+        if (first_packet)
+        {
+            server_tid_addr = data_addr;
+            ESP_LOGI(TAG, "Servidor GSE usando TID (porta) %d", ntohs(server_tid_addr.sin_port));
+            first_packet = 0;
         }
 
         if (ntohs(data_pkt.opcode) != OP_DATA)
@@ -312,12 +393,13 @@ void make_rrq(int sock, struct sockaddr_in *client_addr, const char *filename, u
         mbedtls_sha256_update(&sha_ctx, data_pkt.data.data, data_len);
         total_bytes += data_len;
 
+        // Envia ACK para a porta efêmera do servidor
         tftp_packet_t ack;
         ack.opcode = htons(OP_ACK);
         ack.block = data_pkt.data.block;
 
         if (sendto(sock, &ack, 4, 0,
-                   (struct sockaddr *)client_addr, sizeof(*client_addr)) < 0)
+                   (struct sockaddr *)&server_tid_addr, sizeof(server_tid_addr)) < 0)
         {
             ESP_LOGE(TAG, "Erro ao enviar ACK: errno=%d", errno);
             fclose(temp_file);

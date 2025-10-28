@@ -8,6 +8,7 @@
   "files.associations": {
     "*.py": "python",
     "string.h": "c",
-    "inet.h": "c"
+    "inet.h": "c",
+    "stddef.h": "c"
   }
 }
