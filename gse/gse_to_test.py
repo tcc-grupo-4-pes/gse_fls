@@ -6,364 +6,26 @@ Testa RRQ (Read Request) de arquivo .LUI
 
 import socket
 import struct
-import time
 import sys
-from enum import Enum
-from typing import Optional, Tuple
 import hashlib
+import time
 
-
-# ============ CÓDIGOS TFTP ============
-class TFTP_OPCODE(Enum):
-    RRQ = 1  # Read request (download)
-    WRQ = 2  # Write request (upload)
-    DATA = 3  # Pacote de dados
-    ACK = 4  # Confirmação
-    ERROR = 5  # Erro
-
-
-# ============ CÓDIGOS DE ERRO TFTP ============
-class TFTP_ERROR(Enum):
-    NOT_DEFINED = 0
-    FILE_NOT_FOUND = 1
-    ACCESS_VIOLATION = 2
-    DISK_FULL = 3
-    ILLEGAL_OPERATION = 4
-    UNKNOWN_TID = 5
-    FILE_EXISTS = 6
-    NO_SUCH_USER = 7
-
+from backend.tftp.tftp_lib import (
+    TFTPClient,
+    TFTP_OPCODE,
+    BLOCK_SIZE,
+    MAX_RETRIES,
+    DEFAULT_TIMEOUT,
+)
+from backend.arinc.arinc_lib import (
+    ARINC_STATUS_ACCEPTED,
+    parse_arinc_status_message,
+    create_lur_packet,
+)
 
 # ============ CONSTANTES ============
-TFTP_PORT = 69
-BLOCK_SIZE = 512
-TIMEOUT_SEC = 5
-MAX_RETRIES = 5
 # Timeout (seconds) to wait for the final LUS (100%) after receiving the 50% LUS
 FINAL_LUS_TIMEOUT = 120
-
-# ============ STATUS ARINC ============
-ARINC_STATUS_ACCEPTED = 0x0001
-ARINC_STATUS_IN_PROGRESS = 0x0002
-ARINC_STATUS_COMPLETED_OK = 0x0003
-ARINC_STATUS_REJECTED = 0x1000
-
-
-class TFTPClient:
-    def __init__(
-        self, server_ip: str, server_port: int = TFTP_PORT, timeout: int = TIMEOUT_SEC
-    ):
-        """Inicializa cliente TFTP"""
-        self.server_ip = server_ip
-        self.server_port = server_port
-        self.timeout = timeout
-        self.sock = None
-        self.server_tid = None  # Transfer ID (porta do servidor)
-
-    def connect(self) -> bool:
-        """Cria socket UDP"""
-        try:
-            self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            self.sock.settimeout(self.timeout)
-            print(f"[✓] Socket UDP criado")
-            return True
-        except Exception as e:
-            print(f"[✗] Erro ao criar socket: {e}")
-            return False
-
-    def close(self):
-        """Fecha socket"""
-        if self.sock:
-            self.sock.close()
-            print(f"[✓] Socket fechado")
-
-    def send_wrq(self, filename: str, mode: str = "octet") -> bool:
-        """
-        Envia Write Request (WRQ)
-        Formato: [opcode(2)][filename\0][mode\0]
-        """
-        try:
-            # Monta pacote WRQ
-            pkt = struct.pack("!H", TFTP_OPCODE.WRQ.value)
-            pkt += filename.encode() + b"\0"
-            pkt += mode.encode() + b"\0"
-
-            # Envia para porta 69
-            self.sock.sendto(pkt, (self.server_ip, TFTP_PORT))
-            print(f"[✓] WRQ enviado: {filename} (modo: {mode})")
-            return True
-        except Exception as e:
-            print(f"[✗] Erro ao enviar WRQ: {e}")
-            return False
-
-    def send_rrq(self, filename: str, mode: str = "octet") -> bool:
-        """
-        Envia Read Request (RRQ)
-        Formato: [opcode(2)][filename\0][mode\0]
-        """
-        try:
-            # Monta pacote RRQ
-            pkt = struct.pack("!H", TFTP_OPCODE.RRQ.value)
-            pkt += filename.encode() + b"\0"
-            pkt += mode.encode() + b"\0"
-
-            # Envia para porta 69
-            self.sock.sendto(pkt, (self.server_ip, TFTP_PORT))
-            print(f"[✓] RRQ enviado: {filename} (modo: {mode})")
-            return True
-        except Exception as e:
-            print(f"[✗] Erro ao enviar RRQ: {e}")
-            return False
-
-    def recv_data_packet(self) -> Optional[Tuple[int, bytes]]:
-        """
-        Recebe pacote DATA
-        Retorna (block_number, data)
-        """
-        try:
-            data, addr = self.sock.recvfrom(4 + BLOCK_SIZE)
-
-            if len(data) < 4:
-                print(f"[✗] Pacote muito pequeno: {len(data)} bytes")
-                return None
-
-            opcode = struct.unpack("!H", data[0:2])[0]
-
-            if opcode != TFTP_OPCODE.DATA.value:
-                if opcode == TFTP_OPCODE.ERROR.value:
-                    error_code = struct.unpack("!H", data[2:4])[0]
-                    error_msg = data[4:].decode("utf-8", errors="ignore").rstrip("\0")
-                    print(f"[✗] Erro TFTP {error_code}: {error_msg}")
-                    return None
-                print(f"[✗] Opcode inesperado: {opcode}")
-                return None
-
-            block = struct.unpack("!H", data[2:4])[0]
-            payload = data[4:]
-
-            # Guarda TID do servidor (porta)
-            self.server_tid = addr[1]
-
-            print(
-                f"[✓] DATA bloco {block} recebido ({len(payload)} bytes) de {addr[0]}:{addr[1]}"
-            )
-            return (block, payload)
-
-        except socket.timeout:
-            print(f"[✗] Timeout ao receber DATA")
-            return None
-        except Exception as e:
-            print(f"[✗] Erro ao receber DATA: {e}")
-            return None
-
-    def send_data_packet(self, block: int, data: bytes) -> bool:
-        """
-        Envia pacote DATA
-        Formato: [opcode(2)][block(2)][data(n)]
-        """
-        try:
-            if not self.server_tid:
-                print(f"[✗] TID do servidor desconhecido")
-                return False
-
-            pkt = struct.pack("!HH", TFTP_OPCODE.DATA.value, block)
-            pkt += data
-            self.sock.sendto(pkt, (self.server_ip, self.server_tid))
-            print(f"[✓] DATA bloco {block} enviado ({len(data)} bytes)")
-            return True
-        except Exception as e:
-            print(f"[✗] Erro ao enviar DATA: {e}")
-            return False
-
-    def recv_ack_packet(self) -> Optional[int]:
-        """
-        Recebe pacote ACK
-        Retorna número do bloco ACK ou None em caso de erro
-        """
-        try:
-            data, addr = self.sock.recvfrom(516)
-
-            if len(data) < 4:
-                print(f"[✗] Pacote ACK muito pequeno: {len(data)} bytes")
-                return None
-
-            opcode = struct.unpack("!H", data[0:2])[0]
-
-            if opcode != TFTP_OPCODE.ACK.value:
-                if opcode == TFTP_OPCODE.ERROR.value:
-                    error_code = struct.unpack("!H", data[2:4])[0]
-                    error_msg = data[4:].decode("utf-8", errors="ignore").rstrip("\0")
-                    print(f"[✗] Erro TFTP {error_code}: {error_msg}")
-                    return None
-                print(f"[✗] Opcode inesperado: {opcode}")
-                return None
-
-            block = struct.unpack("!H", data[2:4])[0]
-
-            # Atualiza TID se necessário (primeira resposta do servidor)
-            if not self.server_tid:
-                self.server_tid = addr[1]
-                print(f"[✓] Servidor TID detectado: porta {self.server_tid}")
-
-            print(f"[✓] ACK bloco {block} recebido de {addr[0]}:{addr[1]}")
-            return block
-
-        except socket.timeout:
-            print(f"[✗] Timeout ao receber ACK")
-            return None
-        except Exception as e:
-            print(f"[✗] Erro ao receber ACK: {e}")
-            return None
-
-    def send_ack(self, block: int) -> bool:
-        """
-        Envia ACK
-        Formato: [opcode(2)][block(2)]
-        """
-        try:
-            if not self.server_tid:
-                print(f"[✗] TID do servidor desconhecido")
-                return False
-
-            pkt = struct.pack("!HH", TFTP_OPCODE.ACK.value, block)
-            self.sock.sendto(pkt, (self.server_ip, self.server_tid))
-            print(f"[✓] ACK enviado para bloco {block}")
-            return True
-        except Exception as e:
-            print(f"[✗] Erro ao enviar ACK: {e}")
-            return False
-
-    def write_file(self, filename: str, data: bytes) -> bool:
-        """
-        Escreve arquivo via TFTP (WRQ)
-        Retorna True se sucesso, False caso contrário
-        """
-        # Reset TID para nova transferência
-        self.server_tid = None
-
-        # Envia WRQ inicial para porta 69
-        if not self.send_wrq(filename):
-            return False
-
-        # Aguarda ACK(0) que virá da porta efêmera do servidor
-        ack_block = self.recv_ack_packet()
-        if ack_block != 0:
-            print(f"[✗] ACK(0) não recebido, recebido ACK({ack_block})")
-            return False
-
-        # Agora server_tid está definido (porta efêmera do servidor)
-        print(f"[✓] Servidor aceitou WRQ, usando TID {self.server_tid}")
-
-        # Envia dados em blocos
-        block = 1
-        offset = 0
-
-        while offset < len(data):
-            chunk = data[offset : offset + BLOCK_SIZE]
-
-            if not self.send_data_packet(block, chunk):
-                return False
-
-            # Aguarda ACK
-            ack_block = self.recv_ack_packet()
-            if ack_block != block:
-                print(f"[✗] ACK esperado {block}, recebido {ack_block}")
-                return False
-
-            offset += len(chunk)
-            block += 1
-
-            if len(chunk) < BLOCK_SIZE:
-                break
-
-        print(f"[✓] Arquivo {filename} enviado com sucesso ({len(data)} bytes)")
-        return True
-
-    def read_file(self, filename: str) -> Optional[bytes]:
-        """
-        Lê arquivo via TFTP (RRQ)
-        Retorna conteúdo do arquivo ou None em caso de erro
-        """
-        data_buffer = b""
-        expected_block = 1
-        retry_count = 0
-
-        # Reset TID para nova transferência
-        self.server_tid = None
-
-        # Envia RRQ inicial para porta 69
-        if not self.send_rrq(filename):
-            return None
-
-        while True:
-            # Recebe bloco de dados (primeiro DATA virá da porta efêmera do servidor)
-            result = self.recv_data_packet()
-
-            if result is None:
-                retry_count += 1
-                if retry_count >= MAX_RETRIES:
-                    print(f"[✗] Limite de tentativas atingido")
-                    return None
-                print(f"[⟳] Retry {retry_count}/{MAX_RETRIES}")
-                time.sleep(1)
-                continue
-
-            block, payload = result
-            retry_count = 0
-
-            # Verifica bloco esperado
-            if block != expected_block:
-                print(
-                    f"[✗] Bloco fora de ordem: esperado {expected_block}, recebido {block}"
-                )
-                # Reenvia ACK do último bloco válido
-                self.send_ack(expected_block - 1)
-                continue
-
-            # Acumula dados
-            data_buffer += payload
-
-            # Envia ACK (para a porta efêmera do servidor)
-            self.send_ack(block)
-
-            # Se recebeu menos que BLOCK_SIZE, é o último bloco
-            if len(payload) < BLOCK_SIZE:
-                print(f"[✓] Transfer completo! Total: {len(data_buffer)} bytes")
-                return data_buffer
-
-            expected_block += 1
-
-
-def parse_lui_response(data: bytes) -> dict:
-    """
-    Parseia resposta LUI ARINC 615A
-    Formato: [file_length(4)][protocol_version(2)][status_code(2)][desc_length(1)][description(n)]
-    """
-    if len(data) < 9:
-        return {"error": "Dados insuficientes"}
-
-    # Parse dos campos na ordem correta
-    file_length = struct.unpack("!L", data[0:4])[0]
-    protocol_version = data[4:6].decode("ascii", errors="ignore")
-    status_code = struct.unpack("!H", data[6:8])[0]
-    desc_length = data[8]
-    description = data[9 : 9 + desc_length].decode("ascii", errors="ignore")
-
-    status_map = {
-        ARINC_STATUS_ACCEPTED: "Operação Aceita",
-        ARINC_STATUS_IN_PROGRESS: "Em Progresso",
-        ARINC_STATUS_COMPLETED_OK: "Concluído com Sucesso",
-        ARINC_STATUS_REJECTED: "Operação Rejeitada",
-    }
-
-    return {
-        "file_length": file_length,
-        "protocol_version": protocol_version,
-        "status_code": f"0x{status_code:04x}",
-        "status_name": status_map.get(status_code, "Desconhecido"),
-        "desc_length": desc_length,
-        "description": description,
-    }
 
 
 def test_tftp_connection(server_ip: str):
@@ -392,14 +54,14 @@ def test_tftp_connection(server_ip: str):
             print(f"Hex: {data.hex()}")
 
             # Parseia resposta ARINC
-            lui_response = parse_lui_response(data)
+            lui_response = parse_arinc_status_message(data)
             print(f"\nResposta ARINC 615A (LUI):")
             if "error" in lui_response:
                 print(f"  Erro: {lui_response['error']}")
             else:
                 print(f"  File Length: {lui_response['file_length']}")
                 print(f"  Protocol Version: {lui_response['protocol_version']}")
-                print(f"  Status Code: {lui_response['status_code']}")
+                print(f"  Status Code: 0x{lui_response['status_code']:04x}")
                 print(f"  Status: {lui_response['status_name']}")
                 print(f"  Description Length: {lui_response['desc_length']}")
                 print(f"  Description: {lui_response['description']}")
@@ -442,22 +104,18 @@ def test_tftp_connection(server_ip: str):
                     print(f"Hex: {lus_data.hex()}")
 
                     # Parse do LUS - Formato específico ARINC 615A
-                    file_length = struct.unpack("!L", lus_data[0:4])[0]
-                    protocol_version = lus_data[4:6].decode("ascii")  # A4
-                    status_code = struct.unpack("!H", lus_data[6:8])[0]
-                    desc_length = lus_data[8]
-                    description = lus_data[9 : 9 + desc_length].decode("ascii")
+                    lus_response = parse_arinc_status_message(lus_data)
 
                     print(f"\nConteúdo do LUS:")
-                    print(f"  File Length: {file_length}")
-                    print(f"  Protocol Version: {protocol_version}")
-                    print(f"  Status Code: 0x{status_code:04x}")
-                    print(f"  Description Length: {desc_length}")
-                    print(f"  Description: {description}")
+                    print(f"  File Length: {lus_response['file_length']}")
+                    print(f"  Protocol Version: {lus_response['protocol_version']}")
+                    print(f"  Status Code: 0x{lus_response['status_code']:04x}")
+                    print(f"  Description Length: {lus_response['desc_length']}")
+                    print(f"  Description: {lus_response['description']}")
 
-                    status_ok = status_code == ARINC_STATUS_ACCEPTED
+                    status_ok = lus_response["status_code"] == ARINC_STATUS_ACCEPTED
                     print(f"\nVerificação do Status:")
-                    print(f"  Recebido: 0x{status_code:04x}")
+                    print(f"  Recebido: 0x{lus_response['status_code']:04x}")
                     print(f"  Esperado: 0x{ARINC_STATUS_ACCEPTED:04x}")
                     print(f"  Resultado: {'[✓] OK' if status_ok else '[✗] FALHA'}")
 
@@ -474,16 +132,9 @@ def test_tftp_connection(server_ip: str):
                 lur_filename = "test.LUR"
 
                 # Prepara dados do LUR (exemplo simplificado)
-                lur_data = struct.pack("!L", 64)  # file_length (4 bytes)
-                lur_data += b"A4"  # protocol_version (2 bytes)
-                lur_data += struct.pack("!H", 1)  # num_headers (2 bytes)
-                # Header filename que o BC vai solicitar depois via RRQ
                 header_filename = "fw.bin"
-                lur_data += struct.pack("!B", len(header_filename))
-                lur_data += header_filename.encode()
                 part_number = "PN12345"
-                lur_data += struct.pack("!B", len(part_number))
-                lur_data += part_number.encode()
+                lur_data = create_lur_packet(header_filename, part_number)
 
                 # Usa função write_file que implementa TFTP com portas efêmeras
                 if client.write_file(lur_filename, lur_data):
@@ -506,7 +157,7 @@ def test_tftp_connection(server_ip: str):
                                     transfer_sock = socket.socket(
                                         socket.AF_INET, socket.SOCK_DGRAM
                                     )
-                                    transfer_sock.settimeout(TIMEOUT_SEC)
+                                    transfer_sock.settimeout(DEFAULT_TIMEOUT)
                                     # Bind em porta efêmera (0 = sistema escolhe)
                                     transfer_sock.bind(("", 0))
                                     transfer_port = transfer_sock.getsockname()[1]
@@ -816,42 +467,6 @@ def test_tftp_connection(server_ip: str):
     print(f"\n{'='*60}\n")
 
 
-def test_tftp_reliability(server_ip: str, num_requests: int = 5):
-    """Testa confiabilidade com múltiplas requisições"""
-    print(f"\n{'='*60}")
-    print(f"TESTE DE CONFIABILIDADE - {num_requests} REQUISIÇÕES")
-    print(f"{'='*60}\n")
-
-    success_count = 0
-
-    for i in range(num_requests):
-        print(f"[REQUISIÇÃO {i+1}/{num_requests}]")
-        print(f"-" * 60)
-
-        client = TFTPClient(server_ip)
-
-        if not client.connect():
-            continue
-
-        try:
-            data = client.read_file(f"test_{i}.LUI")
-            if data:
-                success_count += 1
-                print(f"[✓] Sucesso!")
-            else:
-                print(f"[✗] Falha!")
-        finally:
-            client.close()
-
-        time.sleep(1)
-
-    print(f"\n{'='*60}")
-    print(
-        f"Resultados: {success_count}/{num_requests} sucessos ({100*success_count//num_requests}%)"
-    )
-    print(f"{'='*60}\n")
-
-
 if __name__ == "__main__":
     # Detecta IP do servidor
     if len(sys.argv) > 1:
@@ -859,7 +474,7 @@ if __name__ == "__main__":
     else:
         server_ip = "192.168.4.1"  # IP padrão do AP ESP32
 
-    print(f"Conectando ao servidor: {server_ip}:{TFTP_PORT}")
+    print(f"Conectando ao servidor: {server_ip}")
 
     # Executa testes
     test_tftp_connection(server_ip)

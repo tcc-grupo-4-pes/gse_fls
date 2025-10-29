@@ -1,10 +1,10 @@
 {
   "C_Cpp.intelliSenseEngine": "default",
-  "idf.espIdfPathWin": "D:/bruno/Espressif/frameworks/esp-idf-v5.3.1/",
-  "idf.toolsPathWin": "D:\\bruno\\Espressif",
-  "idf.pythonInstallPath": "D:\\bruno\\Espressif\\tools\\idf-python\\3.11.2\\python.exe",
+  "idf.espIdfPathWin": "C:\\Users\\julia\\esp\\v5.5\\esp-idf",
+  "idf.toolsPathWin": "C:\\Espressif\\frameworks\\esp-idf-v5.2.2",
+  "idf.pythonInstallPath": "C:\\Espressif\\frameworks\\esp-idf-v5.2.2\\tools\\idf-python\\3.11.2\\python.exe",
   "idf.flashType": "UART",
-  "idf.portWin": "COM8",
+  "idf.portWin": "COM5",
   "files.associations": {
     "*.py": "python",
     "string.h": "c",
