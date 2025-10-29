@@ -75,31 +75,6 @@ class UploadController(QObject):
         # Extrai o PN (REQ: GSE-LLR-12)
         self.selected_pn = self.parse_pn_from_filename(filename)
         self.logMessage.emit(f"PN detectado: {self.selected_pn}")
-        i = 0
-        self.logMessage.emit(f"Teste: {i}")
-        i+= 1
-        self.logMessage.emit(f"Teste: {i}")
-        i+= 1
-        self.logMessage.emit(f"Teste: {i}")
-        i+= 1
-        self.logMessage.emit(f"Teste: {i}")
-        i+= 1
-        self.logMessage.emit(f"Teste: {i}")
-        i+= 1
-        self.logMessage.emit(f"Teste: {i}")
-        i+= 1
-        self.logMessage.emit(f"Teste: {i}")
-        i+= 1
-        self.logMessage.emit(f"Teste: {i}")
-        i+= 1
-        self.logMessage.emit(f"Teste: {i}")
-        i+= 1
-        self.logMessage.emit(f"Teste: {i}")
-        i+= 1
-        self.logMessage.emit(f"Teste: {i}")
-        i+= 1
-        self.logMessage.emit(f"Final")
-
 
         # Envia os detalhes de volta para a UI
         self.fileDetailsReady.emit(self.selected_pn, path)
