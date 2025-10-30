@@ -187,29 +187,25 @@ Item {
             border.color: "#d9e4ec"
             border.width: 1
             radius: 4
-            anchors.top: imageRow.bottom//logsTitle.bottom
+            anchors.top: imageRow.bottom
             anchors.topMargin: 20
             anchors.left: parent.left
             anchors.leftMargin: pnRow.anchors.leftMargin + 80 + pnRow.spacing
 
-            TextArea {
-                id: logsArea
+            ScrollView {
                 anchors.fill: parent
-                anchors.margins: 8
-                readOnly: true
-                wrapMode: TextArea.WrapAnywhere
-                text: ""
-                font.family: "monospace"
-                font.pixelSize: 12
-                selectByMouse: true
-                cursorVisible: false
-                background: Rectangle { color: "transparent" }
+                clip: true
 
-                ScrollBar.vertical: ScrollBar {
-                    policy: ScrollBar.AsNeeded
-                    anchors.top: parent.top
-                    anchors.bottom: parent.bottom
-                    anchors.right: parent.right
+                TextArea {
+                    id: logsArea
+                    readOnly: true
+                    wrapMode: TextArea.WrapAnywhere
+                    text: ""
+                    font.family: "monospace"
+                    font.pixelSize: 12
+                    selectByMouse: true
+                    cursorVisible: false
+                    background: Rectangle { color: "transparent" }
                 }
             }
         }
