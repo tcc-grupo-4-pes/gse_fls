@@ -14,49 +14,55 @@ import QtQuick.Dialogs
 Item {
     id: uploadPage
 
+    // Estado e seleção atuais
     property string selectedPN: ""
     property string selectedImage: ""
+    // Flag para controle de UI durante transferência
+    property bool isTransferring: false
 
     function appendLog(msg) {
         logsArea.text += msg + "\n"
         logsArea.cursorPosition = logsArea.length
     }
-    //NOVO
+
+    // Conexões com o backend da tela de upload
     Connections {
         target: uploadBackend
 
-            function onLogMessage(msg) {
+        function onLogMessage(msg) {
             appendLog(msg)
         }
+
         function onProgressChanged(pct) {
             uploadProgressBar.value = pct
         }
+
         function onTransferStarted() {
             appendLog("[info] Transferência iniciada.")
-            // Desabilita botões durante a transferência
-            btnTransferir.enabled = false
-            btnSelecionarImagem.enabled = false
-            btnCancelar.enabled = true // Habilita o cancelamento
+            // Entra em modo de transferência: desabilita todos os botões via binding
+            isTransferring = true
         }
+
         function onTransferFinished(ok) {
             appendLog(ok ? "[ok] Transferência concluída." : "[erro] Transferência falhou.")
-            // Reabilita botões
-            btnSelecionarImagem.enabled = true
-            btnCancelar.enabled = false
-            // O 'enabled' do btnTransferir será reavaliado automaticamente
-            // com base nas propriedades 'selectedPN' e 'selectedImage'
-        }
-        
-        // NOVO: Recebe os detalhes do arquivo do backend
-        function onFileDetailsReady(pn, filename) {
+            // Sai do modo de transferência
+            isTransferring = false
 
+            // Limpa seleção (imagem e PN) e reseta progresso.
+            // Mantém apenas os logs, retornando ao estado inicial.
+            selectedImage = ""
+            selectedPN = ""
+            uploadProgressBar.value = 0
+        }
+
+        // Recebe detalhes do arquivo selecionado (PN e nome) do backend
+        function onFileDetailsReady(pn, filename) {
             uploadPage.selectedPN = pn
             uploadPage.selectedImage = filename
-            
-            // Habilita o botão de transferir se tudo estiver ok
-            btnTransferir.enabled = (pn.length > 0 && filename.length > 0)
+            // Habilitação do botão Transferir é automática via binding
         }
     }
+
     Rectangle {
         id: content
         color: "#ffffff"
@@ -256,9 +262,8 @@ Item {
             }
 
             contentItem: Item {
-            anchors.fill: parent
-            clip: true
-
+                anchors.fill: parent
+                clip: true
                 Rectangle {
                     anchors.left: parent.left
                     width: parent.width * uploadProgressBar.visualPosition
@@ -282,25 +287,27 @@ Item {
 
             property int buttonWidth: 144
 
-            // ============================================================================
-            // REQ: GSE-LLR-19 – Botão “Transferir” (Iniciar Upload)
-            // Tipo: Requisito Funcional
-            // Descrição: A página de upload deve apresentar um botão de ação principal
-            // rotulado “Transferir”, posicionado em uma linha de ações logo abaixo da barra
-            // de progresso. O botão deve iniciar o processo de carregamento da imagem para o
-            // Módulo B/C quando acionado. Ele deve permanecer desabilitado até que uma imagem
-            // válida e um PN tenham sido selecionados. O estilo do botão deve seguir as cores
-            // institucionais da Embraer, utilizando fundo azul (#0067B1), variação para hover/
-            // pressed (#017CD4) e texto branco.
-            // Autor: Fabrício
-            // Revisor: Julia
-            // ============================================================================
+        // ============================================================================
+        // REQ: GSE-LLR-19 – Botão “Transferir” (Iniciar Upload)
+        // Tipo: Requisito Funcional
+        // Descrição: A página de upload deve apresentar um botão de ação principal
+        // rotulado “Transferir”, posicionado em uma linha de ações logo abaixo da barra
+        // de progresso. O botão deve iniciar o processo de carregamento da imagem para o
+        // Módulo B/C quando acionado. Ele deve permanecer desabilitado até que uma imagem
+        // válida e um PN tenham sido selecionados. O estilo do botão deve seguir as cores
+        // institucionais da Embraer, utilizando fundo azul (#0067B1), variação para hover/
+        // pressed (#017CD4) e texto branco.
+        // Autor: Fabrício
+        // Revisor: Julia
+        // ============================================================================
             Button {
                 id: btnTransferir
                 text: qsTr("Transferir")
-                enabled: uploadPage.selectedPN.length > 0 && uploadPage.selectedImage.length > 0
                 width: parent.buttonWidth
                 height: 36
+
+                // Habilita apenas se houver imagem + não estiver transferindo
+                enabled: uploadPage.selectedImage.length > 0 && !uploadPage.isTransferring
 
                 contentItem: Label {
                     text: btnTransferir.text
@@ -317,34 +324,35 @@ Item {
                     opacity: btnTransferir.enabled ? 1.0 : 0.5
                 }
 
-                // TODO: implemente aqui a chamada que inicia o upload
                 onClicked: {
-                    // Exemplo: logs e reset do progresso
                     if (!enabled) return
                     uploadProgressBar.value = 0
-                    uploadBackend.startTransfer("192.168.4.1"); // seu IP do ESP32
-                    // sinal/slot para backend:
-                    // uploadPage.startUpload(uploadPage.selectedPN, uploadPage.selectedImage)
+                    // Inicia no backend (exemplo IP)
+                    uploadBackend.startTransfer("192.168.4.1")
+                    // O isTransferring passa a true via onTransferStarted()
                 }
             }
 
-            // ============================================================================
-            // REQ: GSE-LLR-20 – Botão “Selecionar Imagem” (Escolha de Arquivo)
-            // Tipo: Requisito Funcional
-            // Descrição: A página de upload deve conter um botão rotulado “Selecionar Imagem”,
-            // posicionado na mesma linha dos botões de ação logo abaixo da barra de progresso.
-            // Esse botão deve abrir uma janela do sistema operacional que permita ao operador
-            // escolher o arquivo de imagem a ser carregado. O estilo visual deve seguir o
-            // padrão da Embraer, com fundo azul (#0067B1), variação azul-claro (#017CD4) ao
-            // pressionar, e texto branco centralizado.
-            // Autor: Fabrício
-            // Revisor: Julia
-            // ============================================================================
+        // ============================================================================
+        // REQ: GSE-LLR-20 – Botão “Selecionar Imagem” (Escolha de Arquivo)
+        // Tipo: Requisito Funcional
+        // Descrição: A página de upload deve conter um botão rotulado “Selecionar Imagem”,
+        // posicionado na mesma linha dos botões de ação logo abaixo da barra de progresso.
+        // Esse botão deve abrir uma janela do sistema operacional que permita ao operador
+        // escolher o arquivo de imagem a ser carregado. O estilo visual deve seguir o
+        // padrão da Embraer, com fundo azul (#0067B1), variação azul-claro (#017CD4) ao
+        // pressionar, e texto branco centralizado.
+        // Autor: Fabrício
+        // Revisor: Julia
+        // ============================================================================
             Button {
                 id: btnSelecionarImagem
                 text: qsTr("Selecionar Imagem")
                 width: parent.buttonWidth
                 height: 36
+
+                // Bloqueia durante transferência
+                enabled: !uploadPage.isTransferring
 
                 contentItem: Label {
                     text: btnSelecionarImagem.text
@@ -362,68 +370,30 @@ Item {
                     opacity: btnSelecionarImagem.enabled ? 1 : 0.6
                 }
 
-                onClicked: {
-                    fileDialog.open()
-                }
+                onClicked: fileDialog.open()
             }
 
-            // ============================================================================
-            // REQ: GSE-LLR-21 – Botão “Cancelar” (Interrupção do Upload)
-            // Tipo: Requisito Funcional
-            // Descrição: A página de upload deve conter um botão rotulado “Cancelar”,
-            // localizado na mesma linha dos botões de ação logo abaixo da barra de
-            // progresso. Esse botão deve permitir ao operador interromper o processo
-            // de upload em andamento de forma segura, retornando a interface ao estado
-            // inicial. O botão deve seguir o padrão visual Embraer, utilizando fundo
-            // azul (#0067B1), variação azul-claro (#017CD4) ao pressionar e texto branco
-            // centralizado.
-            // Autor: Fabrício
-            // Revisor: Julia
-            // ============================================================================
-            Button {
-                id: btnCancelar
-                text: qsTr("Cancelar")
-                width: parent.buttonWidth
-                height: 36
-                enabled: true
 
-                contentItem: Label {
-                    text: btnCancelar.text
-                    color: "#ffffff"
-                    horizontalAlignment: Text.AlignHCenter
-                    verticalAlignment: Text.AlignVCenter
-                    font.bold: true
-                }
-
-                background: Rectangle {
-                    radius: 4
-                    color: btnCancelar.down ? "#017cd4" : "#0067b1"
-                    border.color: "#015a9b"
-                    border.width: 1
-                    opacity: btnCancelar.enabled ? 1 : 0.6
-                }
-
-                onClicked: {
-                    // TODO: implementar lógica de cancelamento de upload e reset de estado
-                }
-            }
-            // ============================================================================
-            // REQ: GSE-LLR-22 – Botão “Sair” (Encerramento da Aplicação)
-            // Tipo: Requisito Funcional
-            // Descrição: A página de upload deve conter um botão rotulado “Sair”,
-            // localizado na mesma linha dos demais botões logo abaixo da barra de
-            // progresso. Esse botão deve permitir ao operador encerrar o software
-            // GSE de forma segura e controlada, seguindo o padrão visual Embraer
-            // com fundo azul (#0067B1), variação azul-claro (#017CD4) ao pressionar
-            // e texto branco centralizado.
-            // Autor: Fabrício
-            // Revisor: Julia
-            // ============================================================================
+        // ============================================================================
+        // REQ: GSE-LLR-22 – Botão “Sair” (Encerramento da Aplicação)
+        // Tipo: Requisito Funcional
+        // Descrição: A página de upload deve conter um botão rotulado “Sair”,
+        // localizado na mesma linha dos demais botões logo abaixo da barra de
+        // progresso. Esse botão deve permitir ao operador encerrar o software
+        // GSE de forma segura e controlada, seguindo o padrão visual Embraer
+        // com fundo azul (#0067B1), variação azul-claro (#017CD4) ao pressionar
+        // e texto branco centralizado.
+        // Autor: Fabrício
+        // Revisor: Julia
+        // ============================================================================
             Button {
                 id: btnSair
                 text: qsTr("Sair")
                 width: parent.buttonWidth
                 height: 36
+
+                // Também desabilitado durante transferência
+                enabled: !uploadPage.isTransferring
 
                 contentItem: Label {
                     text: btnSair.text
@@ -464,29 +434,22 @@ Item {
             qsTr("Todos os arquivos (*)")
         ]
 
-       onAccepted: {
+        onAccepted: {
             // Pode ser QUrl OU string, dependendo da variante do FileDialog
             var url = fileDialog.selectedFile || fileDialog.fileUrl || ""
-
             // Normaliza para caminho local
             var path = ""
             if (url && url.toLocalFile) {
-                // QUrl
                 path = url.toLocalFile()
             } else {
-                // String URL (ex.: "file:///C:/.../EMB-0001-021-045.bin")
                 path = url.toString ? url.toString() : String(url)
                 if (path.startsWith("file:///")) {
-                    path = decodeURIComponent(path.substring(8)) // remove "file:///"
+                    path = decodeURIComponent(path.substring(8))
                 } else if (path.startsWith("file://")) {
-                    path = decodeURIComponent(path.substring(7)) // fallback
+                    path = decodeURIComponent(path.substring(7))
                 }
             }
-
             uploadBackend.handleImageSelected(path)
-            
         }
     }
 }
-
-

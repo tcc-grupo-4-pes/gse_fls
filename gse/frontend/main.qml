@@ -72,6 +72,10 @@ Window {
                     anchors.bottomMargin: 0
                     btnIconSource: "../../images/svg_images/close_icon.svg"
 
+                     // Desabilita enquanto a página atual estiver transferindo
+                     enabled: !(windowContent.currentItem && windowContent.currentItem.isTransferring)
+                     opacity: enabled ? 1.0 : 0.4
+
                     // ============================================================================
                     // REQ: GSE-LLR-24 – Encerramento da Aplicação ao Pressionar o Botão "X"
                     // Tipo: Requisito Funcional
@@ -81,7 +85,12 @@ Window {
                     // Autor: Fabrício
                     // Revisor: Julia
                     // ============================================================================
-                    onClicked: backend.closeApp()
+                    onClicked: {
+                       // Cinto de segurança: não fecha se estiver transferindo
+                        const pg = windowContent.currentItem
+                        if (pg && pg.isTransferring) return
+                        backend.closeApp()
+             }
                 }
 
                 // ============================================================================
