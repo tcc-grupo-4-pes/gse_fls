@@ -16,16 +16,6 @@ Não contém dependências do Qt (PySide6).
 import os
 from typing import Callable
 
-# ============================================================================
-# REQ: GSE-LLR-200 – Independência de UI/Qt e rede externa
-# Tipo: Requisito Não Funcional
-# Descrição: O módulo de sessão não deve importar PySide/Qt diretamente e
-#            não deve abrir soquetes por conta própria (delegar ao TFTPClient).
-# Critérios de Aceitação:
-#  - Imports restritos a stdlib e módulos internos de protocolo.
-#  - Comunicação sempre via TFTPClient injetado.
-# Autor: (preencher) | Revisor: (preencher)
-# ============================================================================
 from backend.protocols.tftp_client import TFTPClient
 import backend.protocols.arinc_models as models
 from backend.protocols.hash_utils import calculate_file_hash
@@ -33,14 +23,12 @@ from backend.protocols.hash_utils import calculate_file_hash
 # ============ CONSTANTES ============
 
 # ============================================================================
-# REQ: GSE-LLR-201 – Parametrizar chaves de handshake
+# REQ: GSE-LLR-60 – Chaves padrão para handshake estático
 # Tipo: Requisito Funcional
-# Descrição: Definir constantes padrão de chave estática para handshake,
-#            permitindo override por injeção de dependência futura.
-# Critérios de Aceitação:
-#  - Expor GSE_STATIC_KEY e EXPECTED_BC_KEY como bytes.
-#  - Uso do handshake pode ser habilitado/disabled por feature flag externa.
-# Autor: (preencher) | Revisor: (preencher)
+# Descrição: O software DEVE definir chaves padrão para handshake estático, expondo
+#            GSE_STATIC_KEY e EXPECTED_BC_KEY como bytes, permitindo substituição
+#            futura por injeção de dependência ou feature flag externa.
+# Autor: Julia | Revisor: Fabrício
 # ============================================================================
 GSE_STATIC_KEY = b"Embraer123"
 EXPECTED_BC_KEY = b"123Embraer"
@@ -66,26 +54,25 @@ class Arinc615ASession:
         """
 
         # ============================================================================
-        # REQ: GSE-LLR-202 – Injeção de dependências obrigatória
+        # REQ: GSE-LLR-61 – Injeção obrigatória do transporte
         # Tipo: Requisito Funcional
-        # Descrição: Exigir TFTPClient pronto para uso na construção da sessão.
-        # Critérios de Aceitação:
-        #  - Armazenar referência em self.tftp.
-        #  - Lançar exceção se tftp_client for None.
-        # Autor: (preencher) | Revisor: (preencher)
+        # Descrição: A construção da sessão DEVE receber um TFTPClient pronto para uso
+        #            e armazená-lo em self.tftp; se tftp_client for None, a sessão
+        #            DEVE lançar exceção para impedir operação inválida.
+        # Autor: Julia | Revisor: Fabrício
         # ============================================================================
+
         self.tftp = tftp_client
 
         # ============================================================================
-        # REQ: GSE-LLR-203 – Callbacks seguros (logger/progress)
+        # REQ: GSE-LLR-62 – Callbacks seguros por padrão
         # Tipo: Requisito Não Funcional
-        # Descrição: Fornecer callbacks padrão “no-op”/stdout para evitar falhas
-        #            quando não forem injetados.
-        # Critérios de Aceitação:
-        #  - logger padrão imprime em stdout.
-        #  - progress_callback padrão não lança exceção (lambda).
-        # Autor: (preencher) | Revisor: (preencher)
+        # Descrição: A sessão DEVE configurar callbacks seguros por padrão, usando uma
+        #            função que imprime em stdout quando logger não for injetado e uma
+        #            função no-op para progress_callback, evitando falhas por None.
+        # Autor: Julia | Revisor: Fabrício
         # ============================================================================
+
         self.log = logger or (lambda msg: print(msg))
         self.progress = progress_callback or (lambda pct: None)
 
@@ -100,33 +87,29 @@ class Arinc615ASession:
         """
 
         # ============================================================================
-        # REQ: GSE-LLR-204 – Validar parâmetros de entrada do fluxo
+        # REQ: GSE-LLR-63 – Pré-validação dos parâmetros do fluxo
         # Tipo: Requisito Funcional
-        # Descrição: Validar que file_path aponta para arquivo existente e que
-        #            part_number não é vazio.
-        # Critérios de Aceitação:
-        #  - file_path deve existir e ser arquivo regular antes do PASSO 4.
-        #  - part_number != "" antes do PASSO 3.
-        # Observação: a validação “física” de file_path é feita no PASSO 4,
-        #             mas este requisito documenta a obrigação.
-        # Autor: (preencher) | Revisor: (preencher)
+        # Descrição: A sessão DEVE validar os parâmetros de entrada do fluxo, garantindo
+        #            que part_number não seja vazio antes do PASSO 3 e determinando
+        #            header_filename a partir de file_path; a verificação física
+        #            de existência/leitura do arquivo ocorrerá no PASSO 4.
+        # Autor: Julia | Revisor: Fabrício
         # ============================================================================
+
         header_filename = os.path.basename(file_path)
 
         # ===========================================================
         # [NOVO] PASSO DE AUTENTICAÇÃO (Handshake)
         # ===========================================================
         # ============================================================================
-        # REQ: GSE-LLR-205 – Handshake opcional por chave estática
+        # REQ: GSE-LLR-64 – Handshake estático opcional
         # Tipo: Requisito Funcional
-        # Descrição: Quando ativado, realizar verificação mútua de chaves entre
-        #            GSE e BC antes do início do fluxo ARINC (PASSO 1).
-        # Critérios de Aceitação:
-        #  - Chamar tftp.verify_static_key(GSE_STATIC_KEY, EXPECTED_BC_KEY).
-        #  - Em falha, logar e abortar fluxo com retorno False/Exceção conforme política.
-        #  - Em exceção, logar “erro fatal” e terminar o fluxo.
-        # Autor: (preencher) | Revisor: (preencher)
-        # Nota: Trecho desabilitado por padrão; ativar por feature flag.
+        # Descrição: Quando uma feature flag de segurança estiver ativada, o fluxo DEVE
+        #            realizar verificação mútua de chaves chamando
+        #            tftp.verify_static_key(GSE_STATIC_KEY, EXPECTED_BC_KEY) antes do PASSO 1,
+        #            abortando o processo com log apropriado em caso de falha/erro.
+        # Autor: Julia | Revisor: Fabrício
+        # Nota: Código ilustrativo permanece comentado até a flag ser habilitada.
         # ============================================================================
         # self.log("[ARINC] PASSO 0/5: Verificando chave estática (Handshake)...")
         # try:
@@ -136,19 +119,19 @@ class Arinc615ASession:
         # except Exception as e:
         #     self.log(f"[erro] Erro fatal na verificação de chave: {e}")
         #     return
-        # ===========================================================
 
+        # ============================================================================
         # --- PASSO 1: Ler LUI (Load User Information) ---
         # ============================================================================
-        # REQ: GSE-LLR-206 – Ler e parsear LUI inicial
+        # REQ: GSE-LLR-65 – Leitura e parsing do LUI inicial
         # Tipo: Requisito Funcional
-        # Descrição: Ler "system.LUI" via TFTP RRQ e parsear com models.parse_lui_response.
-        # Critérios de Aceitação:
-        #  - Em erro de TFTP, lançar exceção.
-        #  - Em erro de parsing (dict com "error"), lançar exceção com mensagem detalhada.
-        #  - Logar status_name recebido.
-        # Autor: (preencher) | Revisor: (preencher)
+        # Descrição: O fluxo DEVE efetuar RRQ de "system.LUI" via TFTP, parsear a
+        #            resposta com models.parse_lui_response e lançar exceção com
+        #            mensagem detalhada quando o parser retornar um dicionário com "error";
+        #            o software DEVE registrar (log) o status_name recebido.
+        # Autor: Julia | Revisor: Fabrício
         # ============================================================================
+
         self.log("[ARINC] PASSO 1/5: Lendo LUI (system.LUI)...")
         lui_data = self.tftp.read_file("system.LUI")
         lui_info = models.parse_lui_response(lui_data)
@@ -160,46 +143,41 @@ class Arinc615ASession:
         print(f"[DEBUG] Conteúdo de lui_info: {lui_info}")
 
         # ============================================================================
-        # REQ: GSE-LLR-207 – Validar status_code do LUI
+        # REQ: GSE-LLR-66 – Validação do status inicial do LUI
         # Tipo: Requisito Funcional
-        # Descrição: Aceitar LUI inicial com status_code em {ACCEPTED, COMPLETED_OK};
-        #            logar aviso para demais códigos.
-        # Critérios de Aceitação:
-        #  - Converter status_code string "0xhhhh" para int base 16.
-        #  - Em status inesperado, logar aviso (sem abortar obrigatoriamente).
-        # Observação: usar chave existente 'status_code' do dict de LUI.
-        # Autor: (preencher) | Revisor: (preencher)
+        # Descrição: O fluxo DEVE aceitar como esperado um LUI inicial cujo status_code,
+        #            convertido de string "0xhhhh" para inteiro base 16, pertença a
+        #            {ARINC_STATUS_ACCEPTED, ARINC_STATUS_COMPLETED_OK}; para demais
+        #            códigos, o software DEVE somente registrar aviso sem abortar.
+        # Autor: Julia | Revisor: Fabrício
         # ============================================================================
+
         if int(lui_info["status_code"], 16) not in (
             models.ARINC_STATUS_ACCEPTED,
             models.ARINC_STATUS_COMPLETED_OK,
         ):
-            # O ESP32 ARINC usa 0x0003 (COMPLETED_OK) no LUI inicial
-            # Observação: chave 'status_code_hex' não existe em parse_lui_response;
-            # manter consistência usando 'status_code'. (documentado neste LLR)
             self.log(f"[ARINC-AVISO] Status LUI inesperado: {lui_info['status_code']}")
 
         # ============================================================================
-        # REQ: GSE-LLR-208 – Atualizar progresso após PASSO 1
+        # REQ: GSE-LLR-67 – Progresso após PASSO 1
         # Tipo: Requisito Funcional
-        # Descrição: Reportar progresso 10% após LUI processado com sucesso.
-        # Critérios de Aceitação:
-        #  - Chamar progress_callback(10).
-        # Autor: (preencher) | Revisor: (preencher)
+        # Descrição: A sessão DEVE atualizar o progresso para 10% imediatamente após
+        #            o processamento bem-sucedido do LUI inicial.
+        # Autor: Julia | Revisor: Fabrício
         # ============================================================================
+
         self.progress(10)
 
         # --- PASSO 2: Aguardar LUS Inicial (Load Status) ---
         # ============================================================================
-        # REQ: GSE-LLR-209 – Receber LUS inicial via WRQ/DATA
+        # REQ: GSE-LLR-68 – Recepção do LUS inicial
         # Tipo: Requisito Funcional
-        # Descrição: Aguardar WRQ + primeiro DATA do alvo com LUS inicial.
-        # Critérios de Aceitação:
-        #  - Usar tftp.receive_wrq_and_data() para encapsular a troca.
-        #  - Parsear com models.parse_lus_progress e logar progresso.
-        #  - Em erro de parsing, lançar exceção.
-        # Autor: (preencher) | Revisor: (preencher)
+        # Descrição: A sessão DEVE aguardar WRQ + primeiro DATA do alvo contendo o
+        #            LUS inicial, parsear com models.parse_lus_progress e registrar
+        #            o progresso reportado; se o parser indicar erro, lançar exceção.
+        # Autor: Julia | Revisor: Fabrício
         # ============================================================================
+
         self.log("[ARINC] PASSO 2/5: Aguardando LUS inicial (INIT_LOAD.LUS)...")
         lus_data_inicial = self.tftp.receive_wrq_and_data()
         progress_inicial = models.parse_lus_progress(lus_data_inicial)
@@ -208,31 +186,30 @@ class Arinc615ASession:
         )
 
         # ============================================================================
-        # REQ: GSE-LLR-210 – Atualizar progresso após PASSO 2
+        # REQ: GSE-LLR-69 – Progresso após PASSO 2
         # Tipo: Requisito Funcional
-        # Descrição: Reportar progresso 25% após LUS inicial processado.
-        # Critérios de Aceitação:
-        #  - Chamar progress_callback(25).
-        # Autor: (preencher) | Revisor: (preencher)
+        # Descrição: A sessão DEVE atualizar o progresso para 25% após o LUS inicial
+        #            ter sido recebido e validado com sucesso.
+        # Autor: Julia | Revisor: Fabrício
         # ============================================================================
+
         self.progress(25)
 
         # --- PASSO 3: Enviar LUR (Load Upload Request) ---
         # ============================================================================
-        # REQ: GSE-LLR-211 – Construir e enviar LUR
+        # REQ: GSE-LLR-70 – Construção e envio do LUR
         # Tipo: Requisito Funcional
-        # Descrição: Construir LUR com models.build_lur_packet(header_filename, PN)
-        #            e enviar via TFTP WRQ/DATA usando write_file("test.LUR", payload).
-        # Critérios de Aceitação:
-        #  - Em falha de write_file, lançar exceção.
-        #  - Logar arquivo/PN confirmados.
-        # Autor: (preencher) | Revisor: (preencher)
+        # Descrição: A sessão DEVE construir o payload LUR com
+        #            models.build_lur_packet(header_filename, part_number) e enviá-lo
+        #            via TFTP usando write_file("test.LUR", payload), lançando exceção
+        #            em caso de falha no envio; o software DEVE registrar arquivo e PN.
+        # Autor: Julia | Revisor: Fabrício
         # ============================================================================
+
         self.log("[ARINC] PASSO 3/5: Enviando LUR (test.LUR)...")
         lur_payload = models.build_lur_packet(header_filename, part_number)
 
         if not self.tftp.write_file("test.LUR", lur_payload):
-            # A função write_file já terá logado o erro TFTP
             raise Exception("Falha ao enviar LUR (write_file falhou)")
 
         self.log(
@@ -240,25 +217,26 @@ class Arinc615ASession:
         )
 
         # ============================================================================
-        # REQ: GSE-LLR-212 – Atualizar progresso após PASSO 3
+        # REQ: GSE-LLR-71 – Progresso após PASSO 3
         # Tipo: Requisito Funcional
-        # Descrição: Reportar progresso 40% após envio do LUR.
-        # Critérios de Aceitação:
-        #  - Chamar progress_callback(40).
-        # Autor: (preencher) | Revisor: (preencher)
+        # Descrição: A sessão DEVE atualizar o progresso para 40% imediatamente após
+        #            o envio bem-sucedido do LUR.
+        # Autor: Julia | Revisor: Fabrício
         # ============================================================================
+
         self.progress(40)
 
         # --- PASSO 4: Servir Arquivo BIN + HASH ---
         # ============================================================================
-        # REQ: GSE-LLR-213 – Ler arquivo local e calcular SHA-256
+        # REQ: GSE-LLR-72 – Leitura do arquivo e cálculo de SHA-256
         # Tipo: Requisito Funcional
-        # Descrição: Ler file_path e calcular hash com calculate_file_hash(bytes).
-        # Critérios de Aceitação:
-        #  - Em falha de leitura, logar erro e propagar exceção.
-        #  - Logar tamanho lido (bytes) e hash hex.
-        # Autor: (preencher) | Revisor: (preencher)
+        # Descrição: A sessão DEVE ler o arquivo indicado por file_path e calcular o
+        #            hash SHA-256 via calculate_file_hash(bytes), registrando tamanho
+        #            lido e hash em hexadecimal; em falha de leitura, deve logar e
+        #            propagar a exceção.
+        # Autor: Julia | Revisor: Fabrício
         # ============================================================================
+
         self.log(f"[ARINC] PASSO 4/5: Preparando para servir {header_filename}...")
         try:
             self.log(f"[ARINC] Lendo arquivo local: {file_path}")
@@ -273,29 +251,29 @@ class Arinc615ASession:
         self.log(f"[ARINC] HASH: {hash_data.hex()}")
 
         # ============================================================================
-        # REQ: GSE-LLR-214 – Mapear progresso do TFTP (0–100) para UI (40–70)
+        # REQ: GSE-LLR-73 – Mapeamento de progresso para a UI (40–70)
         # Tipo: Requisito Funcional
-        # Descrição: Converter progresso de envio do arquivo para uma faixa parcial
-        #            do progresso geral da UI.
-        # Critérios de Aceitação:
-        #  - Fórmula: total_progress = 40 + int(pct * 0.30).
-        #  - Garantir que, ao término do envio, a UI esteja em ≥70%.
-        # Autor: (preencher) | Revisor: (preencher)
+        # Descrição: A sessão DEVE mapear o progresso de envio do TFTP (0–100) para a
+        #            faixa 40–70 da UI usando a fórmula total_progress = 40 + int(pct*0.30),
+        #            garantindo que ao final do envio a UI atinja pelo menos 70%.
+        # Autor: Julia | Revisor: Fabrício
         # ============================================================================
+
         def tftp_progress_callback(pct_0_100: int):
             total_progress = 40 + int(pct_0_100 * 0.30)
             self.progress(total_progress)
 
         # ============================================================================
-        # REQ: GSE-LLR-215 – Servir BIN e HASH via RRQ do alvo
+        # REQ: GSE-LLR-74 – Servir BIN seguido do HASH ao RRQ
         # Tipo: Requisito Funcional
-        # Descrição: Atender RRQ do alvo para o arquivo BIN seguido do HASH.
-        # Critérios de Aceitação:
-        #  - Usar tftp.serve_file_on_rrq(expected_filename, file_data, hash_data, progress_cb).
-        #  - Enviar DATA(1..N) do arquivo e DATA(N+1) com hash.
-        #  - Propagar exceções de transporte.
-        # Autor: (preencher) | Revisor: (preencher)
+        # Descrição: A sessão DEVE atender ao RRQ do alvo servindo primeiro todos os
+        #            blocos DATA (1..N) do arquivo BIN e, em seguida, um bloco DATA
+        #            contendo o HASH calculado, por meio de
+        #            tftp.serve_file_on_rrq(expected_filename, file_data, hash_data, progress_callback),
+        #            propagando exceções de transporte quando ocorrerem.
+        # Autor: Julia | Revisor: Fabrício
         # ============================================================================
+
         self.tftp.serve_file_on_rrq(
             expected_filename=header_filename,
             file_data=file_data,
@@ -306,25 +284,25 @@ class Arinc615ASession:
         self.log("[ARINC] BIN e HASH servidos com sucesso.")
 
         # ============================================================================
-        # REQ: GSE-LLR-216 – Fixar progresso mínimo após PASSO 4
+        # REQ: GSE-LLR-75 – Progresso mínimo ao fim do PASSO 4
         # Tipo: Requisito Funcional
-        # Descrição: Garantir progresso 70% ao final do PASSO 4.
-        # Critérios de Aceitação:
-        #  - Chamar progress_callback(70).
-        # Autor: (preencher) | Revisor: (preencher)
+        # Descrição: Ao concluir o PASSO 4, a sessão DEVE ajustar explicitamente o
+        #            progresso para 70%, assegurando consistência visual na UI.
+        # Autor: Julia | Revisor: Fabrício
         # ============================================================================
+
         self.progress(70)
 
         # --- PASSO 5: Aguardar LUS Progresso (50% e 100%) ---
         # ============================================================================
-        # REQ: GSE-LLR-217 – Receber e validar LUS 50%
+        # REQ: GSE-LLR-76 – Receber e validar LUS de 50%
         # Tipo: Requisito Funcional
-        # Descrição: Receber LUS de 50% e validar progresso via parse_lus_progress.
-        # Critérios de Aceitação:
-        #  - Logar progresso recebido.
-        #  - Atualizar UI para 85%.
-        # Autor: (preencher) | Revisor: (preencher)
+        # Descrição: A sessão DEVE receber o LUS que reporta 50% de progresso, validá-lo
+        #            via models.parse_lus_progress e registrar o progresso informado,
+        #            atualizando a UI para 85% após a validação.
+        # Autor: Julia | Revisor: Fabrício
         # ============================================================================
+
         self.log("[ARINC] PASSO 5/5: Aguardando LUS 50%...")
         lus_50_data = self.tftp.receive_wrq_and_data()
         prog_50 = models.parse_lus_progress(lus_50_data)
@@ -334,14 +312,14 @@ class Arinc615ASession:
         self.progress(85)
 
         # ============================================================================
-        # REQ: GSE-LLR-218 – Receber LUS 100% com tratamento de timeout
+        # REQ: GSE-LLR-77 – Tratamento de timeout para o LUS final
         # Tipo: Requisito Funcional
-        # Descrição: Esperar LUS final; em TimeoutError, logar e encerrar com exceção.
-        # Critérios de Aceitação:
-        #  - Logar mensagens orientativas em caso de timeout (flash/falha).
-        #  - Lançar Exception("Falha no LUS 100%: Timeout").
-        # Autor: (preencher) | Revisor: (preencher)
+        # Descrição: Ao aguardar o LUS final, a sessão DEVE capturar TimeoutError,
+        #            registrar mensagens orientativas (p.ex., possível flash/falha)
+        #            e lançar a exceção “Falha no LUS 100%: Timeout”.
+        # Autor: Julia | Revisor: Fabrício
         # ============================================================================
+
         self.log("[ARINC] Aguardando LUS 100%...")
         try:
             lus_100_data = self.tftp.receive_wrq_and_data()
@@ -360,39 +338,38 @@ class Arinc615ASession:
         )
 
         # ============================================================================
-        # REQ: GSE-LLR-219 – Conferir progresso final igual a 100%
+        # REQ: GSE-LLR-78 – Aviso quando progresso final != 100%
         # Tipo: Requisito Funcional
-        # Descrição: Se o LUS final não reportar 100%, registrar aviso.
-        # Critérios de Aceitação:
-        #  - Logar aviso sem necessariamente abortar.
-        # Autor: (preencher) | Revisor: (preencher)
+        # Descrição: Ao receber o LUS final, a sessão DEVE registrar aviso caso o
+        #            progresso reportado seja diferente de 100%, sem abortar
+        #            necessariamente o fluxo.
+        # Autor: Julia | Revisor: Fabrício
         # ============================================================================
+
         if prog_100["progress_pct"] != 100:
             self.log(
                 f"[ARINC-AVISO] Progresso final não foi 100% (recebido {prog_100}%)"
             )
 
         # ============================================================================
-        # REQ: GSE-LLR-220 – Finalizar com progresso 100% e logs de rodapé
+        # REQ: GSE-LLR-79 – Finalização a 100% com banners
         # Tipo: Requisito Funcional
-        # Descrição: Ajustar UI para 100% e emitir banners de conclusão.
-        # Critérios de Aceitação:
-        #  - Chamar progress_callback(100).
-        #  - Logar linhas separadoras e mensagem de conclusão.
-        # Autor: (preencher) | Revisor: (preencher)
+        # Descrição: Ao concluir o fluxo, a sessão DEVE ajustar o progresso para 100%
+        #            e emitir banners de conclusão no log (linhas separadoras e
+        #            mensagem de término com sucesso).
+        # Autor: Julia | Revisor: Fabrício
         # ============================================================================
+
         self.progress(100)
         self.log("=" * 30)
         self.log("[ARINC] Fluxo de upload concluído com sucesso.")
         self.log("=" * 30)
 
         # ============================================================================
-        # REQ: GSE-LLR-221 – Contrato de retorno do fluxo
+        # REQ: GSE-LLR-80 – Contrato de retorno do fluxo
         # Tipo: Requisito Funcional
-        # Descrição: Retornar True quando todos os passos (1..5) forem concluídos
-        #            sem exceções.
-        # Critérios de Aceitação:
-        #  - Retornar bool True em caso de sucesso.
-        # Autor: (preencher) | Revisor: (preencher)
+        # Descrição: A rotina run_upload_flow DEVE retornar True quando todos os
+        #            passos (1..5) forem concluídos sem exceções.
+        # Autor: Julia | Revisor: Fabrício
         # ============================================================================
         return True
