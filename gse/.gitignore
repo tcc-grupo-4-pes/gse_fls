@@ -676,6 +676,7 @@ FodyWeavers.xsd
 # Additional files built by Visual Studio
 
 ./gse/logs/*
+./gse/gse_storage/*
 
 
 # End of https://www.toptal.com/developers/gitignore/api/python,visualstudiocode,visualstudio,qml,qt,qtcreator

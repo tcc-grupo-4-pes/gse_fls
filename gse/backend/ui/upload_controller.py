@@ -11,6 +11,7 @@ em uma thread separada.
 """
 
 import os
+import shutil  # NOVO: Importado para operações de cópia de arquivo
 from PySide6.QtCore import QObject, QThreadPool, Signal, Slot, QCoreApplication
 
 # Importa o novo Worker e os Sinais
@@ -18,6 +19,9 @@ from backend.workers.arinc_worker import ArincWorker, WorkerSignals
 
 # NOVO: Importa o logger de arquivo
 from backend.logs.gse_logger import GseLogger
+
+# NOVO: Define a pasta de armazenamento interno
+GSE_STORAGE_DIR = "gse_storage"
 
 
 class UploadController(QObject):
@@ -100,25 +104,61 @@ class UploadController(QObject):
     def handleImageSelected(self, path: str):
         """
         Chamado pelo QML (FileDialog) quando um arquivo é selecionado.
+        NOVO: Agora copia o arquivo para o armazenamento interno.
         """
-        # MODIFICADO: Usa o novo handler de log
-        # self.logMessage.emit(f"Arquivo selecionado: {path}")
-        self._log_handler(f"Arquivo selecionado: {path}")
+        # Loga o caminho original selecionado pelo operador
+        self._log_handler(f"Arquivo selecionado pelo operador: {path}")
         if not path:
             return
 
-        self.selected_path = path
-        filename = os.path.basename(path)
+        # ====================================================================
+        # NOVO: Lógica de Importação de Arquivo (REQ GSE-XXX)
+        # ====================================================================
+        try:
+            # Garante que o caminho de destino seja absoluto
+            storage_dir = os.path.abspath(GSE_STORAGE_DIR)
+            os.makedirs(storage_dir, exist_ok=True)
+
+            filename = os.path.basename(path)
+            # O novo caminho é o arquivo dentro da pasta interna
+            new_path = os.path.join(storage_dir, filename)
+
+            self._log_handler(
+                f"Importando arquivo para o armazenamento interno do GSE..."
+            )
+
+            # Executa a cópia (sobrescreve se já existir)
+            shutil.copy(path, new_path)
+
+            self._log_handler(f"Arquivo importado com sucesso para: {new_path}")
+
+        except Exception as e:
+            self._log_handler(
+                f"[ERRO] Falha ao importar o arquivo para o controle do GSE: {e}"
+            )
+            self._log_handler(
+                "[ERRO] A transferência não pode continuar. Verifique as permissões do GSE."
+            )
+            # Limpa a seleção para evitar transferência de um arquivo inválido
+            self.selected_path = ""
+            self.selected_pn = ""
+            # Informa a UI da falha
+            self.fileDetailsReady.emit("", f"Falha na importação: {e}")
+            return
+        # ====================================================================
+
+        # Armazena o NOVO caminho (o caminho interno)
+        self.selected_path = new_path
+        # (filename já foi extraído acima)
 
         # Extrai o PN (REQ: GSE-LLR-12)
         self.selected_pn = self.parse_pn_from_filename(filename)
 
-        # MODIFICADO: Usa o novo handler de log
-        # self.logMessage.emit(f"PN detectado: {self.selected_pn}")
         self._log_handler(f"PN detectado: {self.selected_pn}")
 
         # Envia os detalhes de volta para a UI
-        self.fileDetailsReady.emit(self.selected_pn, path)
+        # self.selected_path agora contém o novo caminho interno
+        self.fileDetailsReady.emit(self.selected_pn, self.selected_path)
 
     @Slot(str)
     def startTransfer(self, ip_address: str):
@@ -160,7 +200,7 @@ class UploadController(QObject):
         worker_signals = WorkerSignals()
         worker = ArincWorker(
             ip=ip_address,
-            file_path=self.selected_path,
+            file_path=self.selected_path,  # Agora usa o caminho interno
             pn=self.selected_pn,
             signals=worker_signals,
         )
