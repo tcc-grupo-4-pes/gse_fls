@@ -1,14 +1,4 @@
 {
-  "C_Cpp.intelliSenseEngine": "default",
-  "idf.espIdfPathWin": "C:\\Users\\julia\\esp\\v5.5\\esp-idf",
-  "idf.toolsPathWin": "C:\\Espressif\\frameworks\\esp-idf-v5.2.2",
-  "idf.pythonInstallPath": "C:\\Espressif\\frameworks\\esp-idf-v5.2.2\\tools\\idf-python\\3.11.2\\python.exe",
-  "idf.flashType": "UART",
-  "idf.portWin": "COM5",
-  "files.associations": {
-    "*.py": "python",
-    "string.h": "c",
-    "inet.h": "c",
-    "stddef.h": "c"
-  }
+    "idf.flashType": "UART",
+    "idf.monitorPort": "COM5"
 }
