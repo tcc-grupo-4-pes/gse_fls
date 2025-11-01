@@ -277,7 +277,7 @@ Item {
         // Linha de ações abaixo da barra de progresso
         Row {
             id: actionRow
-            spacing: 8
+            spacing: 9
             anchors.top: uploadProgressBar.bottom
             anchors.topMargin: 16
             anchors.left: parent.left
@@ -285,7 +285,7 @@ Item {
             width: imageValueContainer.width
             height: 36
 
-            property int buttonWidth: 144
+            property int buttonWidth: 194
 
         // ============================================================================
         // REQ: GSE-LLR-19 – Botão “Transferir” (Iniciar Upload)
