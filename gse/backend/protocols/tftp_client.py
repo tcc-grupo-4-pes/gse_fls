@@ -295,9 +295,10 @@ class TFTPClient:
 
                 if self.server_tid is None:
                     self.server_tid = addr[1]
-                    self.log(
-                        f"[TFTP-OK] Servidor respondeu da porta {addr[0]}:{self.server_tid}"
-                    )
+                    # self.log(
+                    #     f"[TFTP-OK] Servidor respondeu da porta {addr[0]}:{self.server_tid}"
+                    # )
+                    self.log(f"[TFTP-OK] Servidor respondeu da porta")
                 if addr[1] != self.server_tid:
                     self.log(f"[TFTP-AVISO] DATA de TID inesperado {addr}")
                     continue
@@ -378,9 +379,10 @@ class TFTPClient:
 
             self.server_tid = addr[1]
             destination_addr = (self.server_ip, self.server_tid)
-            self.log(
-                f"[TFTP-OK] Servidor aceitou WRQ (ACK 0) da porta {addr[0]}:{self.server_tid}"
-            )
+            # self.log(
+            #     f"[TFTP-OK] Servidor aceitou WRQ (ACK 0) da porta {addr[0]}:{self.server_tid}"
+            # )
+            self.log(f"[TFTP-OK] Servidor aceitou o write request")
 
             block_num = 1
             offset = 0
@@ -434,7 +436,7 @@ class TFTPClient:
         if opcode != TFTP_OPCODE.WRQ:
             raise Exception(f"Pacote inesperado (esperava WRQ), opcode={opcode}")
 
-        self.log(f"[TFTP-ARINC] WRQ para '{filename}' de {wrq_addr[0]}:{wrq_addr[1]}")
+        self.log(f"[TFTP-ARINC] WRQ para '{filename}' do módulo.")
         self._send_ack(0, wrq_addr)
 
         data_pkt, data_addr = self.sock.recvfrom(4 + BLOCK_SIZE)
@@ -445,9 +447,9 @@ class TFTPClient:
                 f"Pacote inesperado (esperava DATA 1), opcode={opcode} block={block}"
             )
 
-        self.log(
-            f"[TFTP-ARINC] DATA(1) de {data_addr[0]}:{data_addr[1]} ({len(payload)} bytes)"
-        )
+        # self.log(
+        #     f"[TFTP-ARINC] DATA(1) de {data_addr[0]}:{data_addr[1]} ({len(payload)} bytes)"
+        # )
         self._send_ack(1, data_addr)
         return payload
 
@@ -487,7 +489,8 @@ class TFTPClient:
             )
             raise Exception("Nome de arquivo incorreto solicitado pelo Target")
 
-        self.log(f"[TFTP-ARINC] RRQ para '{filename}' de {rrq_addr[0]}:{rrq_addr[1]}")
+        # self.log(f"[TFTP-ARINC] RRQ para '{filename}' de {rrq_addr[0]}:{rrq_addr[1]}")
+        self.log(f"[TFTP-ARINC] RRQ para '{filename}'")
 
         transfer_sock = None
         try:
@@ -495,14 +498,15 @@ class TFTPClient:
             transfer_sock.settimeout(self.timeout)
             transfer_sock.bind(("", 0))
             transfer_port = transfer_sock.getsockname()[1]
-            self.log(
-                f"[TFTP-ARINC] Socket de transferência (BIN) na porta {transfer_port}"
-            )
+            # self.log(
+            #     f"[TFTP-ARINC] Socket de transferência (BIN) na porta {transfer_port}"
+            # )
+            self.log(f"[TFTP-ARINC] Socket de transferência (BIN)")
 
             block_num = 1
             offset = 0
             total_bytes = len(file_data)
-            self.log(f"[TFTP-ARINC] Enviando {total_bytes} bytes para {rrq_addr}...")
+            self.log(f"[TFTP-ARINC] Enviando {total_bytes} bytes para o módulo...")
 
             while offset < total_bytes:
                 chunk = file_data[offset : offset + BLOCK_SIZE]

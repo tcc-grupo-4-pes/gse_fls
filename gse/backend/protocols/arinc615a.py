@@ -139,8 +139,8 @@ class Arinc615ASession:
         if "error" in lui_info:
             raise Exception(f"Falha ao parsear LUI: {lui_info['error']}")
 
-        self.log(f"[ARINC] LUI recebido. Status: {lui_info['status_name']}")
-        print(f"[DEBUG] Conteúdo de lui_info: {lui_info}")
+        self.log("[ARINC] LUI recebido e processado.")
+        # print(f"[DEBUG] Conteúdo de lui_info: {lui_info}")
 
         # ============================================================================
         # REQ: GSE-LLR-66 – Validação do status inicial do LUI
@@ -181,9 +181,7 @@ class Arinc615ASession:
         self.log("[ARINC] PASSO 2/5: Aguardando LUS inicial (INIT_LOAD.LUS)...")
         lus_data_inicial = self.tftp.receive_wrq_and_data()
         progress_inicial = models.parse_lus_progress(lus_data_inicial)
-        self.log(
-            f"[ARINC] LUS inicial recebido. (Progresso reportado: {progress_inicial['progress_pct']}%)"
-        )
+        self.log(f"[ARINC] LUS inicial recebido.")
 
         # ============================================================================
         # REQ: GSE-LLR-69 – Progresso após PASSO 2
@@ -248,7 +246,8 @@ class Arinc615ASession:
 
         self.log(f"[ARINC] Lidos {len(file_data)} bytes. Calculando HASH SHA-256...")
         hash_data = calculate_file_hash(file_data)
-        self.log(f"[ARINC] HASH: {hash_data.hex()}")
+        # self.log(f"[ARINC] HASH: {hash_data.hex()}")
+        self.log(f"[ARINC] HASH Calculado com sucesso.")
 
         # ============================================================================
         # REQ: GSE-LLR-73 – Mapeamento de progresso para a UI (40–70)
@@ -306,9 +305,7 @@ class Arinc615ASession:
         self.log("[ARINC] PASSO 5/5: Aguardando LUS 50%...")
         lus_50_data = self.tftp.receive_wrq_and_data()
         prog_50 = models.parse_lus_progress(lus_50_data)
-        self.log(
-            f"[ARINC] LUS 50% recebido. (Progresso reportado: {prog_50['progress_pct']}%)"
-        )
+        self.log(f"[ARINC] LUS 50% recebido.")
         self.progress(85)
 
         # ============================================================================
@@ -333,9 +330,7 @@ class Arinc615ASession:
             raise Exception("Falha no LUS 100%: Timeout")
 
         prog_100 = models.parse_lus_progress(lus_100_data)
-        self.log(
-            f"[ARINC] LUS 100% recebido. (Progresso reportado: {prog_100['progress_pct']}%)"
-        )
+        self.log(f"[ARINC] LUS 100% recebido.")
 
         # ============================================================================
         # REQ: GSE-LLR-78 – Aviso quando progresso final != 100%
@@ -368,6 +363,7 @@ class Arinc615ASession:
         # ============================================================================
         # REQ: GSE-LLR-80 – Contrato de retorno do fluxo
         # Tipo: Requisito Funcional
+
         # Descrição: A rotina run_upload_flow DEVE retornar True quando todos os
         #            passos (1..5) forem concluídos sem exceções.
         # Autor: Julia | Revisor: Fabrício

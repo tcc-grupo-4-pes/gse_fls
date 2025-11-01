@@ -4,7 +4,7 @@ from pathlib import Path
 
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtQml import QQmlApplicationEngine
-from gse.backend.controllers.general import BackendController
+from backend.controllers.general import BackendController
 from backend.controllers.upload_controller import UploadController  # << NOVO IMPORT
 
 if __name__ == "__main__":
