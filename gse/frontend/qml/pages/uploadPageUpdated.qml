@@ -111,6 +111,8 @@ Item {
                     verticalAlignment: Text.AlignVCenter
                     color: "#1f2937"
                     font.pixelSize: 14
+                    elide: Text.ElideRight
+                    clip: true  
                     text: uploadPage.selectedPN.length > 0 ? uploadPage.selectedPN : qsTr("—")
                 }
             }
@@ -158,6 +160,8 @@ Item {
                     verticalAlignment: Text.AlignVCenter
                     color: "#1f2937"
                     font.pixelSize: 14
+                    elide: Text.ElideRight
+                    clip: true  
                     text: uploadPage.selectedImage.length > 0 ? uploadPage.selectedImage : qsTr("Nenhuma imagem selecionada")
                 }
             }
