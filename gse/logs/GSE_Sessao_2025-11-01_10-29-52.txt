@@ -1,0 +1,57 @@
+[10:29:52.391] --- SESSÃO GSE INICIADA ---
+[10:29:52.391] Controlador de Upload inicializado. Threads: 16
+[10:29:52.391] Log de sessão salvo em: C:\Users\julia\OneDrive\Desktop\TCC PES\TCC2\gse_fls\gse\logs\GSE_Sessao_2025-11-01_10-29-52.txt
+[10:30:01.554] Arquivo selecionado pelo operador: C:/Users/julia/OneDrive/Desktop/TCC PES/PES_TCC_Arquivo_exemplo/EMB-SW-007-137-045.bin
+[10:30:01.554] Importando arquivo para o armazenamento interno do GSE...
+[10:30:01.556] Arquivo importado com sucesso para: C:\Users\julia\OneDrive\Desktop\TCC PES\TCC2\gse_fls\gse\gse_storage\EMB-SW-007-137-045.bin
+[10:30:01.557] PN detectado: EMB-SW-007-137-045
+[10:30:02.249] Usuário [OPERADOR_PADRAO] iniciou a transferência.
+[10:30:02.250] Alvo (BC): 192.168.4.1
+[10:30:02.250] Iniciando transferência de C:\Users\julia\OneDrive\Desktop\TCC PES\TCC2\gse_fls\gse\gse_storage\EMB-SW-007-137-045.bin para 192.168.4.1...
+[10:30:02.254] [WORKER] Iniciando thread para 192.168.4.1...
+[10:30:02.255] [TFTP-OK] Socket UDP principal criado
+[10:30:02.255] [ARINC] PASSO 1/5: Lendo LUI (system.LUI)...
+[10:30:02.256] [TFTP] Lendo arquivo (RRQ): system.LUI
+[10:30:02.256] [TFTP-SEND] RRQ: system.LUI para 192.168.4.1:69
+[10:30:02.269] [TFTP-OK] Servidor respondeu da porta
+[10:30:02.269] [TFTP-OK] Leitura (RRQ) de system.LUI concluída (265 bytes)
+[10:30:02.270] [ARINC] LUI recebido e processado.
+[10:30:02.271] [ARINC] PASSO 2/5: Aguardando LUS inicial (INIT_LOAD.LUS)...
+[10:30:02.271] [TFTP-ARINC] Aguardando WRQ (LUS) no socket principal...
+[10:30:02.291] [TFTP-ARINC] WRQ para 'INIT_LOAD.LUS' de 192.168.4.1:69
+[10:30:02.299] [TFTP-ARINC] DATA(1) de 192.168.4.1:69 (274 bytes)
+[10:30:02.300] [ARINC] LUS inicial recebido.
+[10:30:02.300] [ARINC] PASSO 3/5: Enviando LUR (test.LUR)...
+[10:30:02.302] [TFTP] Escrevendo arquivo (WRQ): test.LUR
+[10:30:02.303] [TFTP-SEND] WRQ: test.LUR para 192.168.4.1:69
+[10:30:02.315] [TFTP-OK] Servidor aceitou o write request
+[10:30:02.321] [TFTP-OK] Escrita (WRQ) de test.LUR concluída (50 bytes)
+[10:30:02.322] [ARINC] LUR enviado com sucesso para EMB-SW-007-137-045.bin (PN: EMB-SW-007-137-045).
+[10:30:02.323] [ARINC] PASSO 4/5: Preparando para servir EMB-SW-007-137-045.bin...
+[10:30:02.324] [ARINC] Lendo arquivo local: C:\Users\julia\OneDrive\Desktop\TCC PES\TCC2\gse_fls\gse\gse_storage\EMB-SW-007-137-045.bin
+[10:30:02.325] [ARINC] Lidos 1024072 bytes. Calculando HASH SHA-256...
+[10:30:02.326] [ARINC] HASH Calculado com sucesso.
+[10:30:02.327] [TFTP-ARINC] Aguardando RRQ para 'EMB-SW-007-137-045.bin'...
+[10:30:02.461] [TFTP-ARINC] RRQ para 'EMB-SW-007-137-045.bin' de 192.168.4.1:69
+[10:30:02.462] [TFTP-ARINC] Socket de transferência (BIN)
+[10:30:02.464] [TFTP-ARINC] Enviando 1024072 bytes para ('192.168.4.1', 69)...
+[10:31:05.480] [TFTP-ARINC] Transferência de EMB-SW-007-137-045.bin concluída.
+[10:31:05.482] [TFTP-ARINC] Enviando HASH (bloco 2002)
+[10:31:05.486] [TFTP-ARINC] HASH enviado e ACK recebido.
+[10:31:05.487] [TFTP-ARINC] Socket de transferência (BIN) fechado
+[10:31:05.489] [ARINC] BIN e HASH servidos com sucesso.
+[10:31:05.490] [ARINC] PASSO 5/5: Aguardando LUS 50%...
+[10:31:05.491] [TFTP-ARINC] Aguardando WRQ (LUS) no socket principal...
+[10:31:05.509] [TFTP-ARINC] WRQ para 'INTERMEDIATE_LOAD.LUS' de 192.168.4.1:69
+[10:31:05.517] [TFTP-ARINC] DATA(1) de 192.168.4.1:69 (274 bytes)
+[10:31:05.519] [ARINC] LUS 50% recebido.
+[10:31:05.520] [ARINC] Aguardando LUS 100%...
+[10:31:05.523] [TFTP-ARINC] Aguardando WRQ (LUS) no socket principal...
+[10:32:00.299] [TFTP-ARINC] WRQ para 'FINAL_LOAD.LUS' de 192.168.4.1:69
+[10:32:00.305] [TFTP-ARINC] DATA(1) de 192.168.4.1:69 (274 bytes)
+[10:32:00.308] [ARINC] LUS 100% recebido.
+[10:32:00.309] ==============================
+[10:32:00.311] [ARINC] Fluxo de upload concluído com sucesso.
+[10:32:00.312] ==============================
+[10:32:00.317] [TFTP-OK] Socket principal fechado
+[10:32:00.318] [WORKER] Thread encerrada e sockets limpos.
