@@ -378,18 +378,16 @@ Item {
             }
 
 
-        // ============================================================================
-        // REQ: GSE-LLR-22 – Botão “Sair” (Encerramento da Aplicação)
-        // Tipo: Requisito Funcional
-        // Descrição: A página de upload deve conter um botão rotulado “Sair”,
-        // localizado na mesma linha dos demais botões logo abaixo da barra de
-        // progresso. Esse botão deve permitir ao operador encerrar o software
-        // GSE de forma segura e controlada, seguindo o padrão visual Embraer
-        // com fundo azul (#0067B1), variação azul-claro (#017CD4) ao pressionar
-        // e texto branco centralizado.
-        // Autor: Fabrício
-        // Revisor: Julia
-        // ============================================================================
+            // ============================================================================
+            // REQ: GSE-LLR-22 – Botão “Sair” (Encerrar Aplicação)
+            // Tipo: Requisito Funcional
+            // Descrição: A página de upload deve conter um botão rotulado “Sair”, posicionado
+            // na mesma linha dos demais botões de ação. Esse botão deve permitir ao operador
+            // encerrar o software GSE de forma segura e controlada, retornando à tela de login
+            // ou fechando a aplicação conforme o contexto operacional.
+            // Autor: Fabrício
+            // Revisor: Julia
+            // ============================================================================
             Button {
                 id: btnSair
                 text: qsTr("Sair")

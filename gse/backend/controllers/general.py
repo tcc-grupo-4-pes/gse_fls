@@ -191,16 +191,17 @@ class BackendController(QObject):
         except Exception as e:
             print(f"[WindowControls] Erro ao mover janela: {e}")
 
-    # ---------------------------------------------------------------------
-    # REQ: GSE-LLR-22 – Retorno à Tela de Login ao Clicar em “Sair”
+    # ============================================================================
+    # REQ: GSE-LLR-22 – Botão “Sair” (Encerrar Aplicação)
     # Tipo: Requisito Funcional
-    # Descrição: Ao pressionar o botão “Sair” na página de upload, o sistema
-    # deve encerrar a sessão atual e retornar à tela de login.
+    # Descrição: A página de upload deve conter um botão rotulado “Sair”, posicionado
+    # na mesma linha dos demais botões de ação. Esse botão deve permitir ao operador
+    # encerrar o software GSE de forma segura e controlada, retornando à tela de login
+    # ou fechando a aplicação conforme o contexto operacional.
     # Autor: Fabrício
     # Revisor: Julia
-    # ---------------------------------------------------------------------
+    # ============================================================================
     logoutRequested = Signal()
-
     @Slot()
     def requestLogout(self):
         """Emite o sinal para retornar à tela de login."""

@@ -6,11 +6,10 @@ import QtQuick.Layouts 2.15
 import Qt5Compat.GraphicalEffects
 
 // ============================================================================
-// REQ: GSE-LLR-4 – Dimensão Mínima da Janela Principal
+// REQ: GSE-LLR-4 – Dimensão Fixa da Janela Principal
 // Tipo: Requisito Funcional
-// Descrição: A interface deve manter uma dimensão mínima de 800x500 px para
+// Descrição: A interface deve manter uma dimensão fixa de 800x500 px para
 // garantir a legibilidade e estabilidade dos elementos gráficos da aplicação.
-// A janela pode ser redimensionada, mas não deve ser menor que esses valores.
 // Autor: Fabrício
 // Revisor: Julia
 // ============================================================================
@@ -77,14 +76,17 @@ Window {
                      opacity: enabled ? 1.0 : 0.4
 
                     // ============================================================================
-                    // REQ: GSE-LLR-24 – Encerramento da Aplicação ao Pressionar o Botão "X"
+                    // REQ: GSE-LLR-24 – Fechamento da Janela pelo Botão “X”
                     // Tipo: Requisito Funcional
-                    // Descrição: Ao pressionar o botão “X” na barra de topo, a aplicação do GSE
-                    // deve ser encerrada de forma segura e controlada, garantindo o fechamento
-                    // completo da interface e a liberação adequada dos recursos utilizados.
+                    // Descrição: Ao pressionar o botão “X” localizado no canto superior direito da
+                    // barra de topo, o sistema deve encerrar imediatamente a aplicação do GSE,
+                    // finalizando todos os processos associados de forma segura. O fechamento deve
+                    // liberar corretamente os recursos utilizados (como conexões, arquivos e memória).
+                    // O botão deve permanecer visível e funcional em todos os estados da interface.
                     // Autor: Fabrício
                     // Revisor: Julia
                     // ============================================================================
+
                     onClicked: {
                        // Cinto de segurança: não fecha se estiver transferindo
                         const pg = windowContent.currentItem
@@ -110,23 +112,17 @@ Window {
                     anchors.rightMargin: 0
                     anchors.topMargin: 0
                     anchors.bottomMargin: 0
-                    // ============================================================================
-                    // REQ: GSE-LLR-3 – Minimizar Aplicação ao Pressionar o Botão "_"
-                    // Tipo: Requisito Funcional
-                    // Descrição: A interface deve incluir um botão de minimizar localizado na
-                    // barra de topo, permitindo ao operador reduzir a janela principal do GSE
-                    // Autor: Fabrício
-                    // Revisor: Julia
-                    // ============================================================================
+                    
                     onClicked: backend.minimizeApp()
                 }
 
                 // ============================================================================
-                // REQ: GSE-LLR-5 – Logotipo da Embraer na Barra Superior
+                // REQ: GSE-LLR-5 – Logo na Barra Superior
                 // Tipo: Requisito Funcional
-                // Descrição: A interface deve exibir o logotipo oficial da Embraer na cor
-                // branca, posicionado no lado esquerdo da barra superior, mantendo as
-                // proporções originais e o padrão visual da marca.
+                // Descrição: A interface do GSE deve apresentar o logotipo oficial da Embraer
+                // na barra superior (Top Bar) da aplicação. O logotipo deve estar na cor branca,
+                // ter proporções preservadas e ser posicionado no lado esquerdo da barra,
+                // respeitando a hierarquia visual da interface.
                 // Autor: Fabrício
                 // Revisor: Julia
                 // ============================================================================
@@ -146,12 +142,13 @@ Window {
                 }
 
                 // ============================================================================
-                // REQ: GSE-LLR-23 – Movimentação da Janela pela Barra de Topo
+                // REQ: GSE-LLR-23 – Arrastar Janela pela Barra de Topo
                 // Tipo: Requisito Funcional
-                // Descrição: A aplicação do GSE deve permitir que o operador mova a janela
-                // principal clicando e arrastando a barra de topo (Top Bar). Esse comportamento
-                // deve simular o movimento padrão de janelas do sistema operacional, oferecendo
-                // uma experiência de uso intuitiva e fluida, mesmo em modo frameless.
+                // Descrição: Ao clicar e segurar com o botão esquerdo do mouse sobre a barra de
+                // topo, o operador deve poder arrastar a janela do GSE livremente pela tela
+                // (comportamento de “drag/move”). O recurso deve funcionar com a janela em estado
+                // normal, e o cursor deve indicar movimentação conforme os padrões do sistema
+                // operacional.
                 // Autor: Fabrício
                 // Revisor: Julia
                 // ============================================================================
@@ -173,15 +170,16 @@ Window {
             }
 
             // ============================================================================
-            // REQ: GSE-LLR-6 – Exibição Automática da Tela de Login
+            // REQ: GSE-LLR-6 – Exibição Automática da Tela de Login ao Iniciar o Aplicativo
             // Tipo: Requisito Funcional
-            // Descrição: Ao iniciar o software GSE, a primeira tela exibida deve ser a tela
-            // de login, bloqueando o acesso às demais funcionalidades até que o operador
-            // seja autenticado com sucesso.
+            // Descrição: Ao iniciar o software GSE, a primeira tela exibida ao operador deve
+            // ser a tela de login, exigindo autenticação por meio de usuário e senha antes de
+            // liberar o acesso a qualquer funcionalidade do sistema. A tela deve ser apresentada
+            // automaticamente durante o carregamento da interface principal, bloqueando a
+            // navegação e o acesso aos módulos até que as credenciais sejam validadas com sucesso.
             // Autor: Fabrício
             // Revisor: Julia
             // ============================================================================
-
             Rectangle {
                 id: content
                 color: "#ffffff"
@@ -196,30 +194,25 @@ Window {
                     id: windowContent
                     anchors.fill: parent
                     Component.onCompleted: windowContent.push(Qt.resolvedUrl("qml/pages/loginPageUpdated.qml"))
-                    // Component.onCompleted: windowContent.push(Qt.resolvedUrl("qml/pages/uploadPageUpdated.qml"))
                 }
 
                 Connections {
                     target: backend
-                    // --------------------------------------------------------------------------
-                    // REQ: GSE-LLR-6 – Exibição automática da tela de login e navegação pós-login
-                    // Tipo: Requisito Funcional
-                    // Descrição: Após autenticação bem-sucedida, a UI deve avançar da página de
-                    // login para a página de upload.
-                    // Autor: Fabrício | Revisor: Julia
-                    // --------------------------------------------------------------------------
                     function onLoginSuccess() {
                         windowContent.push(Qt.resolvedUrl("qml/pages/uploadPageUpdated.qml"))
                     }
 
-                    // ---------------------------------------------------------------------
-                    // REQ: GSE-LLR-22 – Retorno à Tela de Login ao Clicar em “Sair”
+                    // ============================================================================
+                    // REQ: GSE-LLR-22 – Botão “Sair” (Encerrar Aplicação)
                     // Tipo: Requisito Funcional
-                    // Descrição: Ao pressionar o botão “Sair” na página de upload, o sistema
-                    // deve encerrar a sessão atual e retornar à tela de login.
+                    // Descrição: A página de upload deve conter um botão rotulado “Sair”, posicionado
+                    // na mesma linha dos demais botões de ação. Esse botão deve permitir ao operador
+                    // encerrar o software GSE de forma segura e controlada, retornando à tela de login
+                    // ou fechando a aplicação conforme o contexto operacional.
                     // Autor: Fabrício
                     // Revisor: Julia
-                    // ---------------------------------------------------------------------
+                    // ============================================================================
+
                     function onLogoutRequested() {
                     if (windowContent) {
                         windowContent.clear()
