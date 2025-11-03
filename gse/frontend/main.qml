@@ -5,100 +5,47 @@ import "qml/controls"
 import QtQuick.Layouts 2.15
 import Qt5Compat.GraphicalEffects
 
+// ============================================================================
+// REQ: GSE-LLR-4 – Dimensão Mínima da Janela Principal
+// Tipo: Requisito Funcional
+// Descrição: A interface deve manter uma dimensão mínima de 800x500 px para
+// garantir a legibilidade e estabilidade dos elementos gráficos da aplicação.
+// A janela pode ser redimensionada, mas não deve ser menor que esses valores.
+// Autor: Fabrício
+// Revisor: Julia
+// ============================================================================
 Window {
     id: mainWindow
-    width: 1000
-    height: 580
-    minimumWidth: 800
-    minimumHeight: 500
+    width: 800
+    height: 500
     visible: true
     color: "#00ffffff"
     title: qsTr("GSE")
 
-    // Remove title bar
+    // ============================================================================
+    // REQ: GSE-LLR-1 – Barra de Topo
+    // Tipo: Requisito Funcional
+    // Descrição: A interface deve exibir uma barra de status fixa no topo
+    // (ou imediatamente abaixo do cabeçalho) com as cores padrão da Embraer.
+    // Autor: Fabrício
+    // Revisor: Julia
+    // ============================================================================
     flags: Qt.Window | Qt.FramelessWindowHint
 
-    // Properties
-    property int windowStatus: 0
-
-    // Internal functions
-    QtObject{
-        id: internal
-
-        function maximizeRestore(){
-            if(windowStatus === 0){
-                windowStatus = 1
-                mainWindow.showMaximized()
-                btnMaximizeRestore.btnIconSource = "../../images/svg_images/restore_icon.svg"
-                // Resize visibility
-                resizeLeft.visible = false
-                resizeRight.visible = false
-                resizeBottom.visible = false
-                resizeTop.visible = false
-                resizeBottomRight.visible = false
-            }
-            else{
-                windowStatus = 0
-                mainWindow.showNormal()
-                btnMaximizeRestore.btnIconSource = "../../images/svg_images/maximize_icon.svg"
-                // Resize visibility
-                resizeLeft.visible = true
-                resizeRight.visible = true
-                resizeBottom.visible = true
-                resizeTop.visible = true
-                resizeBottomRight.visible = true
-            }
-        }
-
-        function setSection(section) {
-            switch (section) {
-            case "login":
-                labelRightInfo.text = qsTr("| ENTRAR")
-                labelTopInfo.text   = qsTr("Acesse o GSE com suas credenciais.")
-                labelTopInfo1.text  = qsTr("Autenticação de usuário")
-                break
-            case "upload":
-                labelRightInfo.text = qsTr("| UPLOAD")
-                labelTopInfo.text   = qsTr("Gerencie imagens FLS para transferência.")
-                labelTopInfo1.text  = qsTr("Seleção e verificação de imagens")
-                break
-            default:
-                // fallback
-                labelRightInfo.text = qsTr("| GSE")
-                labelTopInfo.text   = qsTr("Application description")
-                labelTopInfo1.text  = qsTr("Application description")
-            }
-        }
-
-    }
-
     Rectangle {
-        id: bg
-        color: "#e5e8ea"
-        border.color: "#d9e4ec"
-        border.width: 1
-        anchors.left: parent.left
-        anchors.right: parent.right
-        anchors.top: parent.top
-        anchors.bottom: parent.bottom
-        anchors.leftMargin: 0
-        anchors.rightMargin: 0
-        anchors.topMargin: 0
-        anchors.bottomMargin: 0
+        id: application
+        color: "#ffffff"
+        anchors.fill: parent
 
         Rectangle {
-            id: appContainer
-            color: "#00ffffff"
+            id: bg
+            color: "#ffffff"
             anchors.fill: parent
-            anchors.leftMargin: 0
-            anchors.rightMargin: 0
-            anchors.topMargin: 0
-            anchors.bottomMargin: 0
 
             Rectangle {
                 id: topBar
-                height: 60
-                color: "#0164ac"
+                height: 35
+                color: "#0067b1"
                 anchors.left: parent.left
                 anchors.right: parent.right
                 anchors.top: parent.top
@@ -106,371 +53,181 @@ Window {
                 anchors.rightMargin: 0
                 anchors.topMargin: 0
 
-                ToggleButton{
-                    btnColorDefault: "#0164ac"
-                    onClicked: animationMenu.running = true
-                }
-
-                Rectangle {
-                    id: topBarDescription
-                    height: 25
-                    color: "#017cd4"
-                    anchors.left: parent.left
+                // ============================================================================
+                // REQ: GSE-LLR-2 – Botão de Fechamento
+                // Tipo: Requisito Funcional
+                // Descrição: A interface deve incluir um botão “X” no canto superior direito
+                // da barra de topo, permitindo ao operador encerrar a aplicação do GSE
+                // de forma direta e intuitiva, conforme o padrão visual Embraer.
+                // Autor: Fabrício
+                // Revisor: Julia
+                // ============================================================================
+                TopBarButton {
+                    id: closeButton
                     anchors.right: parent.right
+                    anchors.top: parent.top
                     anchors.bottom: parent.bottom
-                    anchors.leftMargin: 70
                     anchors.rightMargin: 0
+                    anchors.topMargin: 0
                     anchors.bottomMargin: 0
+                    btnIconSource: "../../images/svg_images/close_icon.svg"
 
-                    Label {
-                        id: labelTopInfo
-                        color: "#f9f9f9"
-                        text: qsTr("Application description")
-                        anchors.fill: parent
-                        anchors.leftMargin: 10
-                        anchors.rightMargin: 300
-                        verticalAlignment: Text.AlignVCenter
-                    }
+                     // Desabilita enquanto a página atual estiver transferindo
+                     enabled: !(windowContent.currentItem && windowContent.currentItem.isTransferring)
+                     opacity: enabled ? 1.0 : 0.4
 
-                    Label {
-                        id: labelRightInfo
-                        color: "#ffffff"
-                        text: qsTr("| ENTRAR")
-                        anchors.left: labelTopInfo.right
-                        anchors.right: parent.right
-                        anchors.top: parent.top
-                        anchors.bottom: parent.bottom
-                        anchors.leftMargin: 0
-                        anchors.rightMargin: 10
-                        anchors.topMargin: 0
-                        anchors.bottomMargin: 0
-                        horizontalAlignment: Text.AlignRight
-                        verticalAlignment: Text.AlignVCenter
-                    }
+                    // ============================================================================
+                    // REQ: GSE-LLR-24 – Encerramento da Aplicação ao Pressionar o Botão "X"
+                    // Tipo: Requisito Funcional
+                    // Descrição: Ao pressionar o botão “X” na barra de topo, a aplicação do GSE
+                    // deve ser encerrada de forma segura e controlada, garantindo o fechamento
+                    // completo da interface e a liberação adequada dos recursos utilizados.
+                    // Autor: Fabrício
+                    // Revisor: Julia
+                    // ============================================================================
+                    onClicked: {
+                       // Cinto de segurança: não fecha se estiver transferindo
+                        const pg = windowContent.currentItem
+                        if (pg && pg.isTransferring) return
+                        backend.closeApp()
+             }
                 }
 
-                Rectangle {
-                    id: titleBar
-                    height: 35
-                    color: "#00ffffff"
-                    anchors.left: parent.left
-                    anchors.right: parent.right
+                // ============================================================================
+                // REQ: GSE-LLR-3 – Botão de Minimizar
+                // Tipo: Requisito Funcional
+                // Descrição: A interface deve incluir um botão de minimizar localizado na
+                // barra de topo, permitindo ao operador reduzir a janela principal do GSE
+                // para a barra de tarefas do sistema operacional, mantendo o aplicativo em execução.
+                // Autor: Fabrício
+                // Revisor: Julia
+                // ============================================================================
+                TopBarButton {
+                    id: minimizeButton
+                    anchors.right: closeButton.left
                     anchors.top: parent.top
-                    anchors.leftMargin: 70
-                    anchors.rightMargin: 105
-                    anchors.topMargin: 0
-
-                    DragHandler {
-                        onActiveChanged: if(active){
-                                             mainWindow.startSystemMove()
-                                         }
-                    }
-
-                    Image {
-                        id: iconApp
-                        width: 33
-                        anchors.left: parent.left
-                        anchors.top: parent.top
-                        anchors.bottom: parent.bottom
-                        anchors.leftMargin: 5
-                        anchors.topMargin: 8
-                        anchors.bottomMargin: 8
-                        source: "images/svg_images/ERJ.D.svg"
-                        mipmap: true
-                        focus: false
-                        antialiasing: true
-                        fillMode: Image.PreserveAspectFit
-                    }
-
-                    Label {
-                        id: label
-                        color: "#ffffff"
-                        text: qsTr("GSE - FLS")
-                        anchors.left: iconApp.right
-                        anchors.right: parent.right
-                        anchors.top: parent.top
-                        anchors.bottom: parent.bottom
-                        anchors.leftMargin: 5
-                        verticalAlignment: Text.AlignVCenter
-                        font.pointSize: 10
-                        font.bold: true
-                    }
-                }
-
-                Row {
-                    id: rowBtns
-                    width: 105
-                    height: 35
-                    anchors.right: parent.right
-                    anchors.top: parent.top
+                    anchors.bottom: parent.bottom
                     anchors.rightMargin: 0
                     anchors.topMargin: 0
+                    anchors.bottomMargin: 0
+                    // ============================================================================
+                    // REQ: GSE-LLR-3 – Minimizar Aplicação ao Pressionar o Botão "_"
+                    // Tipo: Requisito Funcional
+                    // Descrição: A interface deve incluir um botão de minimizar localizado na
+                    // barra de topo, permitindo ao operador reduzir a janela principal do GSE
+                    // Autor: Fabrício
+                    // Revisor: Julia
+                    // ============================================================================
+                    onClicked: backend.minimizeApp()
+                }
 
-                    TopBarButton{
-                        id: btnMinimize
-                        btnColorDefault: "#0164ac"
-                        onClicked: mainWindow.showMinimized()
-                    }
+                // ============================================================================
+                // REQ: GSE-LLR-5 – Logotipo da Embraer na Barra Superior
+                // Tipo: Requisito Funcional
+                // Descrição: A interface deve exibir o logotipo oficial da Embraer na cor
+                // branca, posicionado no lado esquerdo da barra superior, mantendo as
+                // proporções originais e o padrão visual da marca.
+                // Autor: Fabrício
+                // Revisor: Julia
+                // ============================================================================
+                Image {
+                    id: image
+                    width: 100
+                    anchors.left: parent.left
+                    anchors.top: parent.top
+                    anchors.bottom: parent.bottom
+                    anchors.leftMargin: 5
+                    anchors.topMargin: 0
+                    anchors.bottomMargin: 0
+                    source: "images/png_images/embraer_white.png"
+                    sourceSize.height: 24
+                    sourceSize.width: 24
+                    fillMode: Image.PreserveAspectFit
+                }
 
-                    TopBarButton {
-                        id: btnMaximizeRestore
-                        btnColorDefault: "#0164ac"
-                        btnIconSource: "../../images/svg_images/maximize_icon.svg"
-                        onClicked: internal.maximizeRestore()
-                    }
+                // ============================================================================
+                // REQ: GSE-LLR-23 – Movimentação da Janela pela Barra de Topo
+                // Tipo: Requisito Funcional
+                // Descrição: A aplicação do GSE deve permitir que o operador mova a janela
+                // principal clicando e arrastando a barra de topo (Top Bar). Esse comportamento
+                // deve simular o movimento padrão de janelas do sistema operacional, oferecendo
+                // uma experiência de uso intuitiva e fluida, mesmo em modo frameless.
+                // Autor: Fabrício
+                // Revisor: Julia
+                // ============================================================================
+                Rectangle {
+                    id: dragBar
+                    x: 10
+                    y: 0
+                    width: 715
+                    height: 20
+                    color: "#00ffffff"
+                    border.color: "#00000000"
 
-                    TopBarButton {
-                        id: btnClose
-                        btnColorDefault: "#0164ac"
-                        btnColorClicked: "#f05252"
-                        btnColorMouseOver: "#f5033a"
-                        btnIconSource: "../../images/svg_images/close_icon.svg"
-                        onClicked: mainWindow.close()
+                    MouseArea {
+                        anchors.fill: parent
+                        onPressed: backend.startDrag()
+                        hoverEnabled: true
                     }
                 }
             }
 
+            // ============================================================================
+            // REQ: GSE-LLR-6 – Exibição Automática da Tela de Login
+            // Tipo: Requisito Funcional
+            // Descrição: Ao iniciar o software GSE, a primeira tela exibida deve ser a tela
+            // de login, bloqueando o acesso às demais funcionalidades até que o operador
+            // seja autenticado com sucesso.
+            // Autor: Fabrício
+            // Revisor: Julia
+            // ============================================================================
+
             Rectangle {
                 id: content
-                color: "#00ffffff"
+                color: "#ffffff"
                 anchors.left: parent.left
                 anchors.right: parent.right
                 anchors.top: topBar.bottom
                 anchors.bottom: parent.bottom
                 anchors.topMargin: 0
 
-                Rectangle {
-                    id: leftMenu
-                    width: 70
-                    color: "#0164ac"
-                    anchors.left: parent.left
-                    anchors.top: parent.top
-                    anchors.bottom: parent.bottom
-                    anchors.leftMargin: 0
-                    anchors.topMargin: 0
-                    anchors.bottomMargin: 0
 
-                    PropertyAnimation{
-                        id: animationMenu
-                        target: leftMenu
-                        property: "width"
-                        to: if(leftMenu.width === 70) return 175; else return 70
-                        duration: 500
-                        easing.type: Easing.InOutQuint
-                    }
-
-                    Column {
-                        id: columnMenus
-                        anchors.left: parent.left
-                        anchors.right: parent.right
-                        anchors.top: parent.top
-                        anchors.bottom: parent.bottom
-                        anchors.leftMargin: 0
-                        anchors.rightMargin: 0
-                        anchors.topMargin: 0
-                        anchors.bottomMargin: 90
-
-                        LeftMenuBtn {
-                            id: btnLogin
-                            text: qsTr("Entrar")
-                            anchors.left: parent.left
-                            anchors.leftMargin: 0
-                            isActiveMenu: true
-                            width: leftMenu.width
-                            btnIconSource: "../../images/svg_images/home_icon.svg"
-                            btnColorDefault: "#0164ac"
-                            onClicked: {
-                                btnLogin.isActiveMenu = true
-                                btnUpload.isActiveMenu = false
-                                stackView.push(Qt.resolvedUrl("qml/pages/loginPage.qml"))
-                                internal.setSection("login")
-                            }
-                        }
-
-                        LeftMenuBtn {
-                            id: btnUpload
-                            y: 60
-                            width: leftMenu.width
-                            text: qsTr("Upload")
-                            anchors.left: parent.left
-                            anchors.leftMargin: 0
-                            btnIconSource: "../../images/png_images/upload_icon.png"
-                            btnColorDefault: "#0164ac"
-                            onClicked: {
-                                btnLogin.isActiveMenu = false
-                                btnUpload.isActiveMenu = true
-                                stackView.push(Qt.resolvedUrl("qml/pages/uploadPage.qml"))
-                                internal.setSection("upload")
-                            }
-                        }
-                    }
-                }
-
-                Rectangle {
-                    id: contentPage
-                    color: "#e5e8ea"
-                    anchors.left: leftMenu.right
-                    anchors.right: parent.right
-                    anchors.top: parent.top
-                    anchors.bottom: parent.bottom
-                    anchors.leftMargin: 0
-                    anchors.bottomMargin: 25
-                    clip: true
-
-                    StackView {
-                    id: stackView
+                StackView {
+                    id: windowContent
                     anchors.fill: parent
-                    Component.onCompleted:{
-                        stackView.push("qml/pages/loginPage.qml")
-                        internal.setSection("login")
-                        }
-                    }
-                    // Loader{
-                    //     id: pagesView
-                    //     anchors.fill: parent
-                    //     source: Qt.resolvedUrl("qml/pages/loginPage.qml")
-                    // }
+                    Component.onCompleted: windowContent.push(Qt.resolvedUrl("qml/pages/loginPageUpdated.qml"))
+                    // Component.onCompleted: windowContent.push(Qt.resolvedUrl("qml/pages/uploadPageUpdated.qml"))
                 }
 
-                Rectangle {
-                    id: rectangle
-                    y: 280
-                    color: "#017cd4"
-                    anchors.left: leftMenu.right
-                    anchors.right: parent.right
-                    anchors.top: contentPage.bottom
-                    anchors.bottom: parent.bottom
-                    anchors.leftMargin: 0
-                    anchors.rightMargin: 0
-                    anchors.topMargin: 0
-                    anchors.bottomMargin: 0
+                Connections {
+                    target: backend
+                    // --------------------------------------------------------------------------
+                    // REQ: GSE-LLR-6 – Exibição automática da tela de login e navegação pós-login
+                    // Tipo: Requisito Funcional
+                    // Descrição: Após autenticação bem-sucedida, a UI deve avançar da página de
+                    // login para a página de upload.
+                    // Autor: Fabrício | Revisor: Julia
+                    // --------------------------------------------------------------------------
+                    function onLoginSuccess() {
+                        windowContent.push(Qt.resolvedUrl("qml/pages/uploadPageUpdated.qml"))
+                    }
 
-                    Label {
-                        id: labelTopInfo1
-                        x: -60
-                        y: -473
-                        color: "#f9f9f9"
-                        text: qsTr("Application description")
-                        anchors.left: parent.left
-                        anchors.right: parent.right
-                        anchors.top: parent.top
-                        anchors.bottom: parent.bottom
-                        anchors.leftMargin: 10
-                        anchors.rightMargin: 845
-                        verticalAlignment: Text.AlignVCenter
+                    // ---------------------------------------------------------------------
+                    // REQ: GSE-LLR-22 – Retorno à Tela de Login ao Clicar em “Sair”
+                    // Tipo: Requisito Funcional
+                    // Descrição: Ao pressionar o botão “Sair” na página de upload, o sistema
+                    // deve encerrar a sessão atual e retornar à tela de login.
+                    // Autor: Fabrício
+                    // Revisor: Julia
+                    // ---------------------------------------------------------------------
+                    function onLogoutRequested() {
+                    if (windowContent) {
+                        windowContent.clear()
+                        windowContent.push(Qt.resolvedUrl("qml/pages/loginPageUpdated.qml"))
+                        }
                     }
                 }
             }
-        }
-    }
-
-    DropShadow{
-        anchors.fill: bg
-        horizontalOffset: 0
-        verticalOffset: 0
-        radius: 10
-        samples: 16
-        color: "#80000000"
-        source: bg
-        z: 0
-    }
-
-    MouseArea {
-        id: resizeLeft
-        width: 10
-        anchors.left: parent.left
-        anchors.top: parent.top
-        anchors.bottom: parent.bottom
-        anchors.leftMargin: 0
-        anchors.topMargin: 10
-        anchors.bottomMargin: 10
-        cursorShape: Qt.SizeHorCursor
-
-        DragHandler{
-            target: null
-            onActiveChanged: if(active) { mainWindow.startSystemResize(Qt.LeftEdge) }
-        }
-    }
-
-    MouseArea {
-        id: resizeRight
-        width: 10
-        anchors.right: parent.right
-        anchors.top: parent.top
-        anchors.bottom: parent.bottom
-        anchors.rightMargin: 0
-        anchors.topMargin: 10
-        anchors.bottomMargin: 10
-        cursorShape: Qt.SizeHorCursor
-
-        DragHandler{
-            target: null
-            onActiveChanged: if(active) { mainWindow.startSystemResize(Qt.RightEdge) }
-        }
-    }
-
-    MouseArea {
-        id: resizeBottom
-        height: 10
-        anchors.left: parent.left
-        anchors.right: parent.right
-        anchors.bottom: parent.bottom
-        anchors.leftMargin: 10
-        anchors.rightMargin: 10
-        anchors.bottomMargin: 0
-        cursorShape: Qt.SizeVerCursor
-
-        DragHandler{
-            target: null
-            onActiveChanged: if(active) { mainWindow.startSystemResize(Qt.BottomEdge) }
-        }
-    }
-
-    MouseArea {
-        id: resizeTop
-        height: 10
-        anchors.left: parent.left
-        anchors.right: parent.right
-        anchors.top: parent.top
-        anchors.leftMargin: 10
-        anchors.rightMargin: 10
-        anchors.topMargin: 0
-        cursorShape: Qt.SizeVerCursor
-
-        DragHandler{
-            target: null
-            onActiveChanged: if(active) { mainWindow.startSystemResize(Qt.TopEdge) }
-        }
-    }
-
-    MouseArea {
-        id: resizeBottomRight
-        width: 25
-        height: 25
-        anchors.right: parent.right
-        anchors.bottom: parent.bottom
-        anchors.rightMargin: 0
-        anchors.bottomMargin: 0
-        cursorShape: Qt.SizeFDiagCursor
-
-        DragHandler{
-            target: null
-            onActiveChanged: if(active){
-                                 mainWindow.startSystemResize(Qt.RightEdge | Qt.BottomEdge)
-                             }
-        }
-
-        Image {
-            id: resizeImage
-            opacity: 1.00
-            anchors.fill: parent
-            anchors.leftMargin: 5
-            anchors.topMargin: 5
-            source: "images/svg_images/resize_icon.svg"
-            sourceSize.height: 16
-            sourceSize.width: 16
-            fillMode: Image.PreserveAspectFit
-            antialiasing: false
         }
     }
 }
