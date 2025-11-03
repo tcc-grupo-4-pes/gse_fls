@@ -675,7 +675,6 @@ FodyWeavers.xsd
 ### VisualStudio Patch ###
 # Additional files built by Visual Studio
 
-./gse/logs/*
 ./gse/gse_storage/*
 
 
