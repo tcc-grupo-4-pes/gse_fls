@@ -43,7 +43,7 @@ BLOCK_SIZE = 512
 # Autor: Fabrício Carneiro Travassos
 # Revisor: Julia
 # ============================================================================
-TIMEOUT_SEC = 2
+TIMEOUT_SEC = 6
 
 # ============================================================================
 # REQ: GSE-LLR-90: Constante de Retentativas
