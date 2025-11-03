@@ -111,14 +111,17 @@ class Arinc615ASession:
         # Autor: Julia | Revisor: Fabrício
         # Nota: Código ilustrativo permanece comentado até a flag ser habilitada.
         # ============================================================================
+
         # self.log("[ARINC] PASSO 0/5: Verificando chave estática (Handshake)...")
         # try:
-        #     if not self.tftp.verify_static_key(GSE_STATIC_KEY, EXPECTED_BC_KEY):
+        #     # ATUALIZADO: Chamando a nova função de handshake (4 etapas)
+        #     if not self.tftp.perform_authentication(GSE_STATIC_KEY, EXPECTED_BC_KEY):
         #         self.log("[erro] Falha na verificação da chave estática. Abortando.")
-        #         return
+        #         return False # Aborta o fluxo
+        #     self.log("[ARINC] Handshake OK.")
         # except Exception as e:
         #     self.log(f"[erro] Erro fatal na verificação de chave: {e}")
-        #     return
+        #     return False # Aborta o fluxo
 
         # ============================================================================
         # --- PASSO 1: Ler LUI (Load User Information) ---

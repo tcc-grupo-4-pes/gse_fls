@@ -19,7 +19,7 @@ import socket
 import struct
 import time
 from enum import Enum
-from typing import Tuple, Callable
+from typing import Tuple, Callable, Optional
 
 # ============================================================================
 # REQ: GSE-LLR-087: Constante de Porta TFTP
@@ -117,6 +117,7 @@ class TFTPClient:
         self.sock = None
         self.server_tid = None
         self.logger = logger or (lambda msg: print(msg))
+        self.authenticated: bool = False
 
     def log(self, msg: str):
         self.logger(msg)
@@ -151,75 +152,203 @@ class TFTPClient:
 
     # ============================================================================
     # REQ: GSE-LLR-098: Interface de Handshake (Definição)
-    # Descrição: A rotina verify_static_key(gse_key, expected_bc_key, auth_port) deve realizar verificação de par estático GSE↔BC.
+    # Descrição: A rotina perform_authentication(gse_key, expected_bc_key) deve
+    #            realizar o handshake TFTP de 4 etapas (DATA/ACK).
     # Autor: Fabrício Carneiro Travassos
     # Revisor: Julia
     # ============================================================================
     # REQ: GSE-LLR-099: Lógica de Handshake (Timeout Curto)
-    # Descrição: O timeout original deve ser preservado e, durante o handshake, substituído por timeout curto (ex.: 5 s).
+    # Descrição: O timeout original deve ser preservado e, durante o handshake,
+    #            substituído por timeout curto (ex.: 5 s).
     # Autor: Fabrício Carneiro Travassos
     # Revisor: Julia
     # ============================================================================
-    # REQ: GSE-LLR-100: Lógica de Handshake (Envio/Recebimento)
-    # Descrição: A chave do GSE deve ser enviada para (server_ip, auth_port), com espera de resposta no mesmo canal.
+    # REQ: GSE-LLR-100: Lógica de Handshake (Passo 1-2: GSE envia Chave)
+    # Descrição: A rotina deve enviar a gse_key em um pacote DATA(1) para a
+    #            porta 69 e deve aguardar um ACK(1) do BC, capturando o server_tid.
     # Autor: Fabrício Carneiro Travassos
     # Revisor: Julia
     # ============================================================================
-    # REQ: GSE-LLR-101: Lógica de Handshake (Sucesso)
-    # Descrição: A validação deve ser considerada bem-sucedida quando a resposta recebida for idêntica a expected_bc_key, com registro de AUTH-OK e retorno True.
+    # REQ: GSE-LLR-101: Lógica de Handshake (Passo 3-4: BC envia Chave)
+    # Descrição: A rotina deve aguardar um DATA(1) (contendo a expected_bc_key)
+    #            do server_tid do BC e, se a chave for válida, deve responder
+    #            com ACK(1) e retornar True.
     # Autor: Fabrício Carneiro Travassos
     # Revisor: Julia
     # ============================================================================
     # REQ: GSE-LLR-102: Lógica de Handshake (Falha)
-    # Descrição: Em caso de timeout, chave divergente ou erro, a rotina deve registrar AUTH-ERRO e retornar False.
+    # Descrição: Em caso de timeout, pacote TFTP inesperado (opcode/bloco) ou
+    #            chave divergente, a rotina deve registrar AUTH-ERRO e retornar False.
     # Autor: Fabrício Carneiro Travassos
     # Revisor: Julia
     # ============================================================================
     # REQ: GSE-LLR-103: Lógica de Handshake (Restauração de Timeout)
-    # Descrição: O timeout original deve ser restaurado ao final da execução, independentemente do resultado do handshake.
+    # Descrição: O timeout original deve ser restaurado ao final da execução,
+    #            independentemente do resultado do handshake (bloco finally).
     # Autor: Fabrício Carneiro Travassos
     # Revisor: Julia
     # ============================================================================
-    def verify_static_key(
-        self, gse_key: bytes, expected_bc_key: bytes, auth_port: int = 69
-    ) -> bool:
-        self.log("[AUTH] Iniciando verificação de chave estática...")
+
+    def perform_authentication(self, gse_key: bytes, expected_bc_key: bytes) -> bool:
+        """
+        Realiza handshake de autenticação com o BC (TFTP 4-etapas).
+        Implementa: GSE-LLR-098 a GSE-LLR-103
+        """
+        self.log("[AUTH] Iniciando handshake de autenticação (DATA/ACK)...")
         if not self.sock:
             self.log("[AUTH-ERRO] Socket não está conectado.")
             return False
 
         original_timeout = None
         try:
+            # REQ: GSE-LLR-099
             original_timeout = self.sock.gettimeout()
-            self.sock.settimeout(5.0)
+            self.sock.settimeout(5.0)  # Timeout curto para handshake
 
-            auth_addr = (self.server_ip, auth_port)
-            self.sock.sendto(gse_key, auth_addr)
-            self.log(f"[AUTH-SEND] Chave GSE enviada para {auth_addr}")
-            data, addr = self.sock.recvfrom(1024)
-            self.log(f"[AUTH-RECV] Resposta recebida de {addr}")
+            self.server_tid = None  # Reseta TID
 
-            if data == expected_bc_key:
-                self.log("[AUTH-OK] Chave BC recebida é válida. Handshake OK.")
-                return True
-            else:
-                self.log("[AUTH-ERRO] Chave BC inválida!")
-                self.log(f"   Esperado: {expected_bc_key}")
-                self.log(f"   Recebido: {data}")
-                return False
+            # --- PASSO 1: Enviar chave GSE para o BC ---
+            # REQ: GSE-LLR-100 (Parte 1)
+            self.log(f"[AUTH] Enviando chave GSE (DATA 1) para porta {TFTP_PORT}...")
+            pkt = struct.pack("!HH", TFTP_OPCODE.DATA.value, 1) + gse_key
+            self.sock.sendto(pkt, (self.server_ip, TFTP_PORT))
+            self.log("[✓] DATA(1) com chave GSE enviado")
 
-        except socket.timeout:
-            self.log("[AUTH-ERRO] Timeout. O alvo (BC) não respondeu.")
-            return False
+            # --- PASSO 2: Aguardar ACK(1) do BC ---
+            # REQ: GSE-LLR-100 (Parte 2)
+            self.log("[AUTH] Aguardando ACK(1) do BC...")
+            # Usamos a nova helper function (GSE-LLR-133)
+            ack_block = self.recv_ack_packet()
+            if ack_block != 1:
+                self.log(f"[✗] ACK(1) não recebido, recebido Bloco={ack_block}")
+                return False  # REQ: GSE-LLR-102
+
+            self.log("[✓] BC aceitou nossa chave - ACK(1) recebido")
+
+            # --- PASSO 3: Aguardar chave do BC (DATA 1) ---
+            # REQ: GSE-LLR-101 (Parte 1)
+            self.log("[AUTH] Aguardando chave do BC (DATA 1)...")
+            # Usamos a nova helper function (GSE-LLR-137)
+            result = self.recv_data_packet()
+            if not result:
+                self.log("[✗] Chave do BC não recebida (timeout ou erro)")
+                return False  # REQ: GSE-LLR-102
+
+            block, bc_key = result
+            if bc_key != expected_bc_key:
+                self.log("[✗] Chave do BC inválida")
+                self.log(
+                    f"[AUTH]   Recebido: {bc_key.hex() if isinstance(bc_key, bytes) else bc_key}"
+                )
+                self.log(f"[AUTH]   Esperado: {expected_bc_key.hex()}")
+                return False  # REQ: GSE-LLR-102
+
+            self.log("[✓] Chave do BC válida")
+
+            # --- PASSO 4: Envia ACK confirmando a chave ---
+            # REQ: GSE-LLR-101 (Parte 2)
+            # Usamos a nova helper function (GSE-LLR-141)
+            if not self.send_ack(block):
+                self.log("[✗] Erro ao enviar ACK para chave do BC")
+                return False  # REQ: GSE-LLR-102
+
+            self.authenticated = True
+            self.log("[✓] Handshake de autenticação concluído com sucesso!\n")
+            return True
+
         except Exception as e:
-            self.log(f"[AUTH-ERRO] Erro inesperado no handshake: {e}")
+            # REQ: GSE-LLR-102 (parcial)
+            self.log(f"[✗] Erro durante autenticação: {e}")
             return False
         finally:
+            # REQ: GSE-LLR-103
             if original_timeout is not None:
                 self.sock.settimeout(original_timeout)
                 self.log(
                     f"[AUTH] Timeout do socket restaurado para {original_timeout}s."
                 )
+
+    # ============================================================================
+    # INÍCIO - NOVOS HELPERS DE AUTENTICAÇÃO
+    # ============================================================================
+
+    # ============================================================================
+    # REQ: GSE-LLR-133: Interface (Helper Auth) Receber ACK
+    # Descrição: A rotina recv_ack_packet() deve aguardar um pacote no socket,
+    #            validá-lo (GSE-LLR-128), tratar ERRO (GSE-LLR-131) lançando
+    #            exceção, e capturar o server_tid na primeira resposta.
+    # Autor: Fabrício Carneiro Travassos
+    # Revisor: Julia
+    # ============================================================================
+    def recv_ack_packet(self) -> int:
+        if not self.sock:
+            raise RuntimeError("Socket não inicializado (recv_ack_packet).")
+
+        pkt, addr = self.sock.recvfrom(516)
+        opcode, block = self._parse_ack_packet(pkt)  # Usa GSE-LLR-128
+
+        if opcode == TFTP_OPCODE.ERROR:  # Usa GSE-LLR-131
+            err_code, err_msg = self._parse_error_packet(pkt)
+            raise Exception(f"Erro TFTP {err_code}: {err_msg}")
+
+        if opcode != TFTP_OPCODE.ACK:
+            raise Exception(f"Pacote inesperado (esperava ACK), opcode={opcode}")
+
+        if self.server_tid is None:
+            self.server_tid = addr[1]
+            self.log(f"[AUTH] TID do Servidor capturado: {self.server_tid}")
+
+        return block
+
+    # ============================================================================
+    # REQ: GSE-LLR-134: Interface (Helper Auth) Receber DATA
+    # Descrição: A rotina recv_data_packet() deve aguardar um pacote no socket,
+    #            validá-lo (GSE-LLR-127), tratar ERRO (GSE-LLR-131) lançando
+    #            exceção, e capturar o server_tid na primeira resposta.
+    # Autor: Fabrício Carneiro Travassos
+    # Revisor: Julia
+    # ============================================================================
+    def recv_data_packet(self) -> Optional[Tuple[int, bytes]]:
+        if not self.sock:
+            raise RuntimeError("Socket não inicializado (recv_data_packet).")
+
+        pkt, addr = self.sock.recvfrom(4 + BLOCK_SIZE)
+        opcode, block, payload = self._parse_data_packet(pkt)  # Usa GSE-LLR-127
+
+        if opcode == TFTP_OPCODE.ERROR:  # Usa GSE-LLR-131
+            err_code, err_msg = self._parse_error_packet(pkt)
+            raise Exception(f"Erro TFTP {err_code}: {err_msg}")
+
+        if opcode != TFTP_OPCODE.DATA:
+            self.log(f"[AUTH-AVISO] Pacote inesperado durante auth (opcode={opcode})")
+            return None
+
+        if self.server_tid is None:
+            self.server_tid = addr[1]
+            self.log(f"[AUTH] TID do Servidor capturado: {self.server_tid}")
+
+        return (block, payload)
+
+    # ============================================================================
+    # REQ: GSE-LLR-135: Interface (Helper Auth) Enviar ACK
+    # Descrição: A rotina send_ack(block) deve enviar um pacote ACK (GSE-LLR-125)
+    #            para o server_tid conhecido (ou porta 69 se TID for None)
+    #            e retornar True.
+    # Autor: Fabrício Carneiro Travassos
+    # Revisor: Julia
+    # ============================================================================
+    def send_ack(self, block: int) -> bool:
+        if not self.sock:
+            raise RuntimeError("Socket não inicializado (send_ack).")
+
+        # Envia ACK para o TID conhecido, ou para a porta 69 se o TID ainda não foi pego
+        addr = (self.server_ip, self.server_tid or self.server_port_69)
+        self._send_ack(block, addr)  # Usa GSE-LLR-125
+        return True
+
+    # ============================================================================
+    # FIM - NOVOS HELPERS DE AUTENTICAÇÃO
+    # ============================================================================
 
     # ============================================================================
     # REQ: GSE-LLR-104: Interface de Leitura de Arquivo (RRQ)
