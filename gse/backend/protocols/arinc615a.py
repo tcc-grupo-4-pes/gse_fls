@@ -30,8 +30,8 @@ from backend.protocols.hash_utils import calculate_file_hash
 #            futura por injeção de dependência ou feature flag externa.
 # Autor: Julia | Revisor: Fabrício
 # ============================================================================
-GSE_STATIC_KEY = b"Embraer123"
-EXPECTED_BC_KEY = b"123Embraer"
+GSE_STATIC_KEY = b"GSE_SECRET_KEY_32_BYTES_EXACTLY!"
+EXPECTED_BC_KEY = b"BC_SECRET_KEY_32_BYTES_EXACTLY!!"
 
 
 class Arinc615ASession:
@@ -112,16 +112,16 @@ class Arinc615ASession:
         # Nota: Código ilustrativo permanece comentado até a flag ser habilitada.
         # ============================================================================
 
-        # self.log("[ARINC] PASSO 0/5: Verificando chave estática (Handshake)...")
-        # try:
-        #     # ATUALIZADO: Chamando a nova função de handshake (4 etapas)
-        #     if not self.tftp.perform_authentication(GSE_STATIC_KEY, EXPECTED_BC_KEY):
-        #         self.log("[erro] Falha na verificação da chave estática. Abortando.")
-        #         return False # Aborta o fluxo
-        #     self.log("[ARINC] Handshake OK.")
-        # except Exception as e:
-        #     self.log(f"[erro] Erro fatal na verificação de chave: {e}")
-        #     return False # Aborta o fluxo
+        self.log("[ARINC] PASSO 0/5: Verificando chave estática (Handshake)...")
+        try:
+            # ATUALIZADO: Chamando a nova função de handshake (4 etapas)
+            if not self.tftp.perform_authentication(GSE_STATIC_KEY, EXPECTED_BC_KEY):
+                self.log("[erro] Falha na verificação da chave estática. Abortando.")
+                return False  # Aborta o fluxo
+            self.log("[ARINC] Handshake OK.")
+        except Exception as e:
+            self.log(f"[erro] Erro fatal na verificação de chave: {e}")
+            return False  # Aborta o fluxo
 
         # ============================================================================
         # --- PASSO 1: Ler LUI (Load User Information) ---
@@ -305,11 +305,11 @@ class Arinc615ASession:
         # Autor: Julia | Revisor: Fabrício
         # ============================================================================
 
-        self.log("[ARINC] PASSO 5/5: Aguardando LUS 50%...")
-        lus_50_data = self.tftp.receive_wrq_and_data()
-        prog_50 = models.parse_lus_progress(lus_50_data)
-        self.log(f"[ARINC] LUS 50% recebido.")
-        self.progress(85)
+        # self.log("[ARINC] PASSO 5/5: Aguardando LUS 50%...")
+        # lus_50_data = self.tftp.receive_wrq_and_data()
+        # prog_50 = models.parse_lus_progress(lus_50_data)
+        # self.log(f"[ARINC] LUS 50% recebido.")
+        # self.progress(85)
 
         # ============================================================================
         # REQ: GSE-LLR-77 – Tratamento de timeout para o LUS final
@@ -320,7 +320,7 @@ class Arinc615ASession:
         # Autor: Julia | Revisor: Fabrício
         # ============================================================================
 
-        self.log("[ARINC] Aguardando LUS 100%...")
+        self.log("[ARINC] PASSO 5/5: Aguardando LUS 100%...")
         try:
             lus_100_data = self.tftp.receive_wrq_and_data()
         except TimeoutError:
