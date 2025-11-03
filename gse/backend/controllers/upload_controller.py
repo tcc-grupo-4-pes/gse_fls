@@ -18,7 +18,7 @@ from PySide6.QtCore import QObject, QThreadPool, Signal, Slot, QCoreApplication
 from backend.workers.arinc_worker import ArincWorker, WorkerSignals
 
 # Importa o logger de arquivo
-from backend.logs.gse_logger import GseLogger
+from backend.logsGSE.gse_logger import GseLogger
 
 # ============================================================================
 # REQ: GSE-LLR-151: Constante de Armazenamento Interno
