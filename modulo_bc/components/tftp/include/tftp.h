@@ -11,8 +11,8 @@
 // TFTP constants
 #define TFTP_PORT 69
 #define BLOCK_SIZE 512
-#define TFTP_RETRY_LIMIT 5
-#define TFTP_TIMEOUT_SEC 5
+#define TFTP_RETRY_LIMIT 1
+#define TFTP_TIMEOUT_SEC 2
 
 // TFTP opcodes
 #define OP_RRQ 1
