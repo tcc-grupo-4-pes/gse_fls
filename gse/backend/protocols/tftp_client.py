@@ -22,7 +22,7 @@ from enum import Enum
 from typing import Tuple, Callable, Optional
 
 # ============================================================================
-# REQ: GSE-LLR-087: Constante de Porta TFTP
+# REQ: GSE-LLR-87: Constante de Porta TFTP
 # Descrição: A constante de porta TFTP (TFTP_PORT) deve ser definida como 69.
 # Autor: Fabrício Carneiro Travassos
 # Revisor: Julia
@@ -30,7 +30,7 @@ from typing import Tuple, Callable, Optional
 TFTP_PORT = 69
 
 # ============================================================================
-# REQ: GSE-LLR-088: Constante de Tamanho de Bloco
+# REQ: GSE-LLR-88: Constante de Tamanho de Bloco
 # Descrição: A constante de tamanho de bloco (BLOCK_SIZE) deve ser 512 bytes (padrão RFC 1350).
 # Autor: Fabrício Carneiro Travassos
 # Revisor: Julia
@@ -38,20 +38,20 @@ TFTP_PORT = 69
 BLOCK_SIZE = 512
 
 # ============================================================================
-# REQ: GSE-LLR-089: Constante de Timeout
-# Descrição: A constante de timeout (TIMEOUT_SEC) deve possuir valor ≥ 30 s (ajustada para 60 s) para acomodar operações lentas de flash.
+# REQ: GSE-LLR-89: Constante de Timeout
+# Descrição: A constante de timeout (TIMEOUT_SEC) deve possuir valor ≥ 2s para acomodar operações lentas de flash.
 # Autor: Fabrício Carneiro Travassos
 # Revisor: Julia
 # ============================================================================
-TIMEOUT_SEC = 60
+TIMEOUT_SEC = 2
 
 # ============================================================================
-# REQ: GSE-LLR-090: Constante de Retentativas
-# Descrição: A constante de retentativas (MAX_RETRIES) deve ser definida com valor ≥ 3 (ajustada para 5).
+# REQ: GSE-LLR-90: Constante de Retentativas
+# Descrição: A constante de retentativas (MAX_RETRIES) deve ser definida com valor ≥ 1.
 # Autor: Fabrício Carneiro Travassos
 # Revisor: Julia
 # ============================================================================
-MAX_RETRIES = 5
+MAX_RETRIES = 1
 
 
 class TFTP_OPCODE(Enum):
@@ -79,27 +79,27 @@ class TFTPClient:
     """
 
     # ============================================================================
-    # REQ: GSE-LLR-091: Interface de Inicialização (Parâmetros)
+    # REQ: GSE-LLR-91: Interface de Inicialização (Parâmetros)
     # Descrição: O construtor deve aceitar server_ip (str), server_port (int), timeout (int) e logger (Callable[[str], None]).
     # Autor: Fabrício Carneiro Travassos
     # Revisor: Julia
     # ============================================================================
-    # REQ: GSE-LLR-092: Interface de Inicialização (Valores Padrão)
+    # REQ: GSE-LLR-92: Interface de Inicialização (Valores Padrão)
     # Descrição: O construtor deve empregar TFTP_PORT (GSE-LLR-087) e TIMEOUT_SEC (GSE-LLR-089) como padrões para server_port e timeout.
     # Autor: Fabrício Carneiro Travassos
     # Revisor: Julia
     # ============================================================================
-    # REQ: GSE-LLR-093: Interface de Inicialização (Armazenamento)
+    # REQ: GSE-LLR-93: Interface de Inicialização (Armazenamento)
     # Descrição: Os parâmetros de entrada devem ser armazenados em atributos da instância.
     # Autor: Fabrício Carneiro Travassos
     # Revisor: Julia
     # ============================================================================
-    # REQ: GSE-LLR-094: Interface de Inicialização (Logger Padrão)
+    # REQ: GSE-LLR-94: Interface de Inicialização (Logger Padrão)
     # Descrição: Na ausência de logger, deve ser utilizado um logger padrão (ex.: print).
     # Autor: Fabrício Carneiro Travassos
     # Revisor: Julia
     # ============================================================================
-    # REQ: GSE-LLR-095: Provisão para Métricas de Transporte
+    # REQ: GSE-LLR-95: Provisão para Métricas de Transporte
     # Descrição: A interface deve prever pontos para futura coleta de métricas (bytes, retries, tempos), mesmo que não implementados.
     # Autor: Fabrício Carneiro Travassos
     # Revisor: Julia
@@ -123,7 +123,7 @@ class TFTPClient:
         self.logger(msg)
 
     # ============================================================================
-    # REQ: GSE-LLR-096: Interface de Conexão UDP
+    # REQ: GSE-LLR-96: Interface de Conexão UDP
     # Descrição: A interface connect() deve criar socket UDP (AF_INET, SOCK_DGRAM), aplicar settimeout(self.timeout), registrar sucesso/erro e retornar True/False conforme resultado.
     # Autor: Fabrício Carneiro Travassos
     # Revisor: Julia
@@ -139,7 +139,7 @@ class TFTPClient:
             return False
 
     # ============================================================================
-    # REQ: GSE-LLR-097: Interface de Encerramento de Socket
+    # REQ: GSE-LLR-97: Interface de Encerramento de Socket
     # Descrição: A interface close() deve encerrar o socket principal (close, atribuir None) e registrar o encerramento.
     # Autor: Fabrício Carneiro Travassos
     # Revisor: Julia
@@ -151,13 +151,13 @@ class TFTPClient:
             self.log("[TFTP-OK] Socket principal fechado")
 
     # ============================================================================
-    # REQ: GSE-LLR-098: Interface de Handshake (Definição)
+    # REQ: GSE-LLR-98: Interface de Handshake (Definição)
     # Descrição: A rotina perform_authentication(gse_key, expected_bc_key) deve
     #            realizar o handshake TFTP de 4 etapas (DATA/ACK).
     # Autor: Fabrício Carneiro Travassos
     # Revisor: Julia
     # ============================================================================
-    # REQ: GSE-LLR-099: Lógica de Handshake (Timeout Curto)
+    # REQ: GSE-LLR-99: Lógica de Handshake (Timeout Curto)
     # Descrição: O timeout original deve ser preservado e, durante o handshake,
     #            substituído por timeout curto (ex.: 5 s).
     # Autor: Fabrício Carneiro Travassos

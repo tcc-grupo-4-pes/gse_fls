@@ -13,6 +13,8 @@ import os
 import datetime
 from typing import TextIO
 
+# Arquivo para criar logs de sessão do GSE
+
 
 class GseLogger:
     """
