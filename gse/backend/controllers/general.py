@@ -11,10 +11,22 @@ class BackendController(QObject):
     def __init__(self, engine, parent=None):
         super().__init__(parent)
         self.engine = engine
-        # ------------------------------------------------------------------
-        # REQ: GSE-HLR-22 / GSE-LLR-28 – Credenciais a partir de fonte local
-        # Carrega credenciais (usuário + hash PBKDF2) do arquivo JSON isolado
-        # ------------------------------------------------------------------
+        # ============================================================================
+        # REQ: GSE-LLR-28 – Validação de Credenciais ao Pressionar o Botão “Entrar”
+        # Tipo: Requisito Funcional
+        # Rastreabilidade: GSE-HLR-18, GSE-HLR-19, GSE-HLR-20
+        # Título: Validação de Credenciais ao Pressionar o Botão “Entrar”
+        # Descrição: Ao pressionar o botão “Entrar” na tela de login, o sistema deve obter
+        # o nome de usuário e a senha informados nos campos correspondentes e realizar a
+        # validação das credenciais. A verificação deve ser feita comparando o usuário e a
+        # senha digitados com os dados armazenados localmente (arquivo de credenciais
+        # protegido), utilizando o mecanismo de hash seguro PBKDF2-HMAC-SHA256 conforme
+        # definido nos requisitos de segurança. Caso as credenciais sejam válidas, o
+        # sistema deve liberar o acesso à interface principal do GSE; caso contrário, deve
+        # exibir uma mensagem de erro conforme especificado no requisito GSE-LLR-10.
+        # Autor: Fabrício
+        # Revisor: Julia
+        # ============================================================================
         self._credentials = {}
         self._load_credentials_from_json()
 
@@ -104,13 +116,25 @@ class BackendController(QObject):
         except Exception as e:
             print(f"[Credenciais] Erro ao ler {cfg_path}: {e}")
 
-    # ---------------------------------------------------------------------
-    # GSE-LLR-27 / GSE-LLR-28 – Autenticação e verificação de credenciais
-    # Sinais expostos ao QML:
+    # ============================================================================
+    # REQ: GSE-LLR-28 – Validação de Credenciais ao Pressionar o Botão “Entrar”
+    # Tipo: Requisito Funcional
+    # Rastreabilidade: GSE-HLR-18, GSE-HLR-19, GSE-HLR-20
+    # Título: Validação de Credenciais ao Pressionar o Botão “Entrar”
+    # Descrição: Ao pressionar o botão “Entrar” na tela de login, o sistema deve obter
+    # o nome de usuário e a senha informados nos campos correspondentes e realizar a
+    # validação das credenciais. A verificação deve ser feita comparando o usuário e a
+    # senha digitados com os dados armazenados localmente (arquivo de credenciais
+    # protegido), utilizando o mecanismo de hash seguro PBKDF2-HMAC-SHA256 conforme
+    # definido nos requisitos de segurança. Caso as credenciais sejam válidas, o
+    # sistema deve liberar o acesso à interface principal do GSE; caso contrário, deve
+    # exibir uma mensagem de erro conforme especificado no requisito GSE-LLR-10.
+    # Autor: Fabrício
+    # Revisor: Julia
+    # ============================================================================
     loginSuccess = Signal()  # navega para a página de upload
     loginFailed = Signal(str)  # exibe mensagem de erro no login
 
-    # ---------------------------------------------------------------------
     @Slot(str, str)
     def verifyLogin(self, username: str, password: str) -> None:
         user = (username or "").strip()
