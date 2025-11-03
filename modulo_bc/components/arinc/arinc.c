@@ -1,6 +1,5 @@
 #include "arinc.h"
 
-#include <stdio.h>     // NULL check
 #include <string.h>    // memset, memcpy, strlen
 #include <arpa/inet.h> // htonl, htons, ntohl, ntohs
 

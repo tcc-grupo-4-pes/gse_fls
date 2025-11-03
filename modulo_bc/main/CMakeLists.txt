@@ -1,4 +1,3 @@
 idf_component_register(SRCS "main.c"
-                    REQUIRES mbedtls wifi storage arinc tftp 
-                    INCLUDE_DIRS ".")
-                    
+                       INCLUDE_DIRS "."
+                       REQUIRES "state_machine")

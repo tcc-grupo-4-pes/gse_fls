@@ -1,0 +1,15 @@
+idf_component_register(
+    SRCS "src/fsm.c"
+         "src/state_table.c"
+         "src/state_init.c"
+         "src/state_operational.c"
+         "src/state_maint_wait.c"
+         "src/state_upload_prep.c"
+         "src/state_uploading.c"
+         "src/state_verify.c"
+         "src/state_save.c"
+         "src/state_teardown.c"
+         "src/state_error.c"
+    INCLUDE_DIRS "include"
+    REQUIRES "freertos" "esp_common" "button_handler" "nvs_flash" "storage" "wifi" "arinc" "tftp" "auth"
+)
