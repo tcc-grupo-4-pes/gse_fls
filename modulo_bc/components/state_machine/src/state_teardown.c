@@ -36,6 +36,7 @@ static fsm_state_t state_teardown_run(void)
     opcode = 0;
     n = 0;
     upload_failure_count = 0;
+    auth_reset_authentication(); // Reseta estado de autenticação
     
     ESP_LOGI(TAG, "Variáveis globais limpas");
 

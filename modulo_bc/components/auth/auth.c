@@ -154,7 +154,7 @@ esp_err_t auth_perform_handshake(int sock, struct sockaddr_in *client_addr, auth
         if (errno == EAGAIN || errno == EWOULDBLOCK)
         {
             int64_t elapsed_ms = (esp_timer_get_time() - start_time_us) / 1000;
-            if (elapsed_ms >= 60000)
+            if (elapsed_ms >= 180000)
             {
                 ESP_LOGW(TAG, "Timeout aguardando chave do GSE");
                 return ESP_ERR_TIMEOUT;
