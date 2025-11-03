@@ -12,6 +12,10 @@ from enum import Enum
 from typing import Optional, Tuple
 import hashlib
 
+# ============ CHAVES DE AUTENTICAÇÃO ============
+GSE_KEY = b'GSE_SECRET_KEY_32_BYTES_EXACTLY!'
+BC_EXPECTED_KEY = b'BC_SECRET_KEY_32_BYTES_EXACTLY!!'
+
 # ============ CÓDIGOS TFTP ============
 class TFTP_OPCODE(Enum):
     RRQ = 1      # Read request (download)
@@ -46,6 +50,7 @@ ARINC_STATUS_COMPLETED_OK = 0x0003
 ARINC_STATUS_REJECTED = 0x1000
 
 
+
 class TFTPClient:
     def __init__(self, server_ip: str, server_port: int = TFTP_PORT, timeout: int = TIMEOUT_SEC):
         """Inicializa cliente TFTP"""
@@ -71,6 +76,69 @@ class TFTPClient:
         if self.sock:
             self.sock.close()
             print(f"[✓] Socket fechado")
+    def perform_authentication(self) -> bool:
+        """
+        Realiza handshake de autenticação com o BC
+        Protocolo:
+        1. GSE envia chave via DATA(1) para BC
+        2. BC valida e responde com ACK(1)
+        3. BC envia sua chave via DATA(1) para GSE
+        4. GSE valida e responde com ACK(1)
+        """
+        try:
+            print(f"\n[AUTH] Iniciando handshake de autenticação...")
+            
+            # Reset TID
+            self.server_tid = None
+            
+            # Passo 1: Enviar nossa chave para o BC
+            print(f"[AUTH] Enviando chave GSE para BC...")
+            gse_key_packet = struct.pack("!HH", TFTP_OPCODE.DATA.value, 1)  # DATA bloco 1
+            gse_key_packet += GSE_KEY
+            
+            self.sock.sendto(gse_key_packet, (self.server_ip, TFTP_PORT))
+            print(f"[✓] DATA(1) com chave GSE enviado")
+            
+            # Aguarda ACK(1) do BC
+            print(f"[AUTH] Aguardando ACK(1) do BC...")
+            ack_block = self.recv_ack_packet()
+            if ack_block != 1:
+                print(f"[✗] ACK(1) não recebido, recebido ACK({ack_block})")
+                return False
+            
+            print(f"[✓] BC aceitou nossa chave - ACK(1) recebido")
+            
+            # Passo 2: Aguardar chave do BC
+            print(f"[AUTH] Aguardando chave do BC...")
+            result = self.recv_data_packet()
+            
+            if not result:
+                print(f"[✗] Chave do BC não recebida")
+                return False
+            
+            block, bc_key = result
+            
+            # Validar chave do BC
+            if bc_key != BC_EXPECTED_KEY:
+                print(f"[✗] Chave do BC inválida")
+                print(f"[AUTH]   Recebido: {bc_key.hex()}")
+                print(f"[AUTH]   Esperado: {BC_EXPECTED_KEY.hex()}")
+                return False
+            
+            print(f"[✓] Chave do BC válida")
+            
+            # Envia ACK confirmando a chave
+            if not self.send_ack(block):
+                print(f"[✗] Erro ao enviar ACK para chave do BC")
+                return False
+            
+            self.authenticated = True
+            print(f"[✓] Handshake de autenticação concluído com sucesso!\n")
+            return True
+            
+        except Exception as e:
+            print(f"[✗] Erro durante autenticação: {e}")
+            return False
     
     def send_wrq(self, filename: str, mode: str = "octet") -> bool:
         """
@@ -370,6 +438,13 @@ def test_tftp_connection(server_ip: str):
         return
     
     try:
+         # Passo 1: Autenticação
+        print(f"[PASSO 1] Handshake de Autenticação")
+        print(f"-" * 60)
+        
+        if not client.perform_authentication():
+            print(f"[✗] Falha na autenticação! Abortando teste.")
+            return
         # Teste 1: Requisição válida de arquivo .LUI
         print(f"[TESTE 1] Requisição de arquivo .LUI válido")
         print(f"-" * 60)
@@ -470,7 +545,7 @@ def test_tftp_connection(server_ip: str):
                 header_filename = "fw.bin"
                 lur_data += struct.pack("!B", len(header_filename))
                 lur_data += header_filename.encode()
-                part_number = "PN12345"
+                part_number = "EMB-SW-007-137-045"
                 lur_data += struct.pack("!B", len(part_number))
                 lur_data += part_number.encode()
 

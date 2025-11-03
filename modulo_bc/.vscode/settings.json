@@ -9,6 +9,7 @@
     "*.py": "python",
     "string.h": "c",
     "inet.h": "c",
-    "stddef.h": "c"
+    "stddef.h": "c",
+    "esp_log.h": "c"
   }
 }

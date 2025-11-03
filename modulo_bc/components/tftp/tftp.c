@@ -1,5 +1,6 @@
 #include "tftp.h"
-#include "storage.h" // open_temp_file, TEMP_MOUNT_POINT
+#include "storage.h" // open_temp_file, FIRMWARE_MOUNT_POINT
+#include "state_machine/fsm.h" // upload_failure_count
 
 #include <stdio.h>  // FILE operations
 #include <string.h> // strstr, memcpy
@@ -7,6 +8,7 @@
 #include <stdlib.h> // malloc, free
 
 #include "esp_log.h"
+#include "esp_spiffs.h"   // esp_spiffs_info
 #include "lwip/sockets.h" // sendto, recvfrom, setsockopt
 #include "mbedtls/sha256.h"
 #include "freertos/FreeRTOS.h"
@@ -60,15 +62,7 @@ void handle_rrq(int sock, struct sockaddr_in *client, char *filename)
     }
 
     size_t total_size = sizeof(lui_data_t);
-    uint8_t *lui_buf = malloc(total_size);
-    if (lui_buf == NULL)
-    {
-        ESP_LOGE(TAG, "Falha ao alocar memoria para LUI");
-        close(transfer_sock);
-        return;
-    }
-
-    memcpy(lui_buf, &lui, total_size);
+    uint8_t *lui_buf = (uint8_t *)&lui; // Usa ponteiro direto para a estrutura no stack
 
     int sent = 0;
     uint16_t block = 1;
@@ -90,6 +84,8 @@ void handle_rrq(int sock, struct sockaddr_in *client, char *filename)
         {
             ESP_LOGW(TAG, "Falha ao enviar bloco %d, tentando novamente", block);
             retry_count++;
+            upload_failure_count++;
+
             if (retry_count >= TFTP_RETRY_LIMIT)
             {
                 ESP_LOGE(TAG, "Limite de tentativas atingido para bloco %d", block);
@@ -128,7 +124,6 @@ void handle_rrq(int sock, struct sockaddr_in *client, char *filename)
             break;
     }
 
-    free(lui_buf);
     close(transfer_sock);
     ESP_LOGI(TAG, "RRQ concluido, socket de transferência fechado");
 }
@@ -203,6 +198,7 @@ void handle_wrq(int sock, struct sockaddr_in *client, char *filename, lur_data_t
         {
             ESP_LOGW(TAG, "Pacote inesperado (opcode=%d, block=%d)",
                      ntohs(pkt.opcode), ntohs(pkt.data.block));
+            upload_failure_count++;
             continue;
         }
 
@@ -318,13 +314,11 @@ void make_wrq(int sock, struct sockaddr_in *client_addr, const char *lus_filenam
 void make_rrq(int sock, struct sockaddr_in *client_addr, const char *filename, unsigned char *hash)
 {
     ESP_LOGI(TAG, "Iniciando RRQ para %s", filename);
-    char temp_path[512];
-    snprintf(temp_path, sizeof(temp_path), "%s/%s", TEMP_MOUNT_POINT, filename);
 
-    FILE *temp_file = fopen(temp_path, "wb");
+    FILE *temp_file = open_temp_file();
     if (!temp_file)
     {
-        ESP_LOGE(TAG, "Failed to open temporary file for write: %s", temp_path);
+        ESP_LOGE(TAG, "Failed to open temporary file for write");
         return;
     }
 
@@ -382,9 +376,30 @@ void make_rrq(int sock, struct sockaddr_in *client_addr, const char *filename, u
         int data_len = n - 4;
         ESP_LOGI(TAG, "Bloco %d recebido (%d bytes)", ntohs(data_pkt.data.block), data_len);
 
+        // Verifica se há espaço disponível na partição antes de escrever o bloco
+        size_t total = 0, used = 0;
+        esp_err_t ret = esp_spiffs_info("firmware", &total, &used);
+        if (ret != ESP_OK)
+        {
+            ESP_LOGE(TAG, "Falha ao obter informações da partição: %s", esp_err_to_name(ret));
+            fclose(temp_file);
+            mbedtls_sha256_free(&sha_ctx);
+            return;
+        }
+
+        size_t available = total - used;
+        if (available < (size_t)data_len)
+        {
+            ESP_LOGE(TAG, "Espaço insuficiente na partição! Necessário=%d, Disponível=%u",
+                     data_len, (unsigned)available);
+            fclose(temp_file);
+            mbedtls_sha256_free(&sha_ctx);
+            return;
+        }
+
         if (fwrite(data_pkt.data.data, 1, data_len, temp_file) != (size_t)data_len)
         {
-            ESP_LOGE(TAG, "Failed to write to temp file: %s", temp_path);
+            ESP_LOGE(TAG, "Failed to write to temp file: %s", TEMP_FILE_PATH);
             fclose(temp_file);
             mbedtls_sha256_free(&sha_ctx);
             return;
@@ -424,5 +439,5 @@ void make_rrq(int sock, struct sockaddr_in *client_addr, const char *filename, u
 
     fclose(temp_file);
 
-    ESP_LOGI(TAG, "Arquivo %s recebido em %s (%u bytes). Hash calculado.", filename, TEMP_MOUNT_POINT, (unsigned)total_bytes);
+    ESP_LOGI(TAG, "Arquivo %s recebido como temp.bin (%u bytes). Hash calculado.", filename, (unsigned)total_bytes);
 }
