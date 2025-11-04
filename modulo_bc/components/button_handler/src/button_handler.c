@@ -90,7 +90,10 @@ bool button_is_pressed(button_handle_t handle)
     return false;
 }
 
-/* BC-LLR-73 - Liberação de recursos do botão */
+/* BC-LLR-72 - Liberação de recursos do botão
+Na saída do modo operacional, o B/C deve liberar todos os recursos associados ao botão de manutenção 
+(GPIO, handlers, memória) para evitar vazamento de recursos e garantir que o botão não influencie na manutenção
+*/
 esp_err_t button_deinit(button_handle_t handle)
 {
     if (!handle)

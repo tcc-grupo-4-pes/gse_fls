@@ -17,12 +17,20 @@ static fsm_state_t state_teardown_run(void)
     lus_data_t final_lus_data;
     if (init_lus(&final_lus_data, ARINC_STATUS_OP_COMPLETED_OK,
                  "Load Completed Successfully", 2, "100") != 0)
-    {
+    {   
+        /* BC-LLR-68 Erro ao inicializar o FINAL.LUS 
+        No estado TEARDOWN, caso haja algum erro ao inicializar o arquivo FINAL.LUS, 
+        o software deve ir para o estado ERROR e parar a execução da tarefa*/
         ESP_LOGE(TAG, "Falha ao inicializar LUS final");
         return ST_ERROR;
     }
     make_wrq(sock, &client_addr, "FINAL_LOAD.LUS", &final_lus_data);
 
+    /* BC-LLR-47 Limpeza das variáveis globais
+    No estado TEARDOWN, o software do B/C deve limpar todas variáveis globais como: 
+    a estrutura do .LUR, o hash, o pacote TFTP que contém as requisições, 
+    deve resetar ponteiros, opcode, contador de falhas e resetar a autenticação
+    */
     // Limpar todas variáveis globais após operação bem-sucedida
     ESP_LOGI(TAG, "Limpando variáveis globais...");
 
@@ -40,7 +48,11 @@ static fsm_state_t state_teardown_run(void)
     
     ESP_LOGI(TAG, "Variáveis globais limpas");
 
-    return ST_MAINT_WAIT; // Retorna para maint_wait após envio do LUS final
+    /* BC-LLR-48 Transição para estado MAINT_WAIT partindo do TEARDOWN 
+    No estado TEARDOWN, após todas finalizações terem sido completas corretamente, 
+    o software do B/C deve transicionar para o estado MAINT_WAIT para possibilitar que o processo de carregamento possa ser repetido
+    */
+    return ST_MAINT_WAIT; 
 }
 
 static void state_teardown_exit(void)

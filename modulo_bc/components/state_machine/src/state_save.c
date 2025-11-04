@@ -14,6 +14,7 @@ static fsm_state_t state_save_run(void)
     ESP_LOGI(TAG, "RUNNING ST_SAVE");
 
     /* BC-LLR-44 e BC-LLR-45 - Finaliza e renomeia arquivo de firmware */
+    /* BC-LLR-66 e BC-LLR-67 - Erros ao finalizar e renomear arquivo de firmware */
     if (finalize_firmware_file() != ESP_OK)
     {
         ESP_LOGE(TAG, "Falha ao finalizar arquivo de firmware");
