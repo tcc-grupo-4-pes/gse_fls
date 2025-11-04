@@ -59,7 +59,14 @@ esp_err_t auth_write_static_keys(void)
 }
 
 esp_err_t auth_load_keys(auth_keys_t *keys)
-{
+{   
+    /* BC-LLR-80 - Validação de Ponteiro de Estrutura de Chaves
+    No modo MAINT_WAIT, antes de carregar as chaves de autenticação da partição SPIFFS,
+    o sistema deve validar se o ponteiro para a estrutura de destino é válido (não nulo). 
+    Em caso de ponteiro inválido, o sistema deve registrar erro crítico 
+    e retornar código de erro ESP_ERR_INVALID_ARG  0x102, 
+    evitando acesso inválido à memória e falha de segmentação.
+    */
     if (!keys)
     {
         ESP_LOGE(TAG, "Ponteiro de chaves inválido");
@@ -68,14 +75,24 @@ esp_err_t auth_load_keys(auth_keys_t *keys)
 
     ESP_LOGI(TAG, "Carregando chaves da partição");
 
-    // Carrega chave do BC
     FILE *bc_file = fopen(BC_KEY_FILE, "rb");
+    /* BC-LLR-81 - Validação de Abertura de Arquivo de Chave BC
+    No modo MAINT_WAIT, caso ocorra erro ao abrir o arquivo /keys/bc_key.bin
+    em modo leitura binária, o B/C deve registrar erro e retornar o erro 
+    ESP_FAIL -1
+    */
     if (!bc_file)
     {
         ESP_LOGE(TAG, "Falha ao abrir arquivo da chave BC");
         return ESP_FAIL;
     }
 
+    /* BC-LLR-82 - Validação de Leitura de Chave BC
+    No modo MAINT_WAIT, após abrir o arquivo /keys/bc_key.bin, o B/C deve
+    ler exatamente 32 bytes para o buffer de chave BC. Caso a leitura 
+    retorne quantidade diferente de 32 bytes, o B/C deve registrar erro,
+    fechar o arquivo e retornar o erro ESP_FAIL -1
+    */
     if (fread(keys->bc_auth_key, 1, BC_KEY_SIZE, bc_file) != BC_KEY_SIZE)
     {
         ESP_LOGE(TAG, "Falha ao ler chave BC");
@@ -84,7 +101,11 @@ esp_err_t auth_load_keys(auth_keys_t *keys)
     }
     fclose(bc_file);
 
-    // Carrega chave esperada do GSE
+    /* BC-LLR-83 - Validação de Abertura de Arquivo de Chave GSE
+    No modo MAINT_WAIT, caso ocorra erro ao abrir o arquivo /keys/gse_key.bin
+    em modo leitura binária, o B/C deve registrar erro e retornar o erro 
+    ESP_FAIL -1
+    */
     FILE *gse_file = fopen(GSE_KEY_FILE, "rb");
     if (!gse_file)
     {
@@ -92,6 +113,12 @@ esp_err_t auth_load_keys(auth_keys_t *keys)
         return ESP_FAIL;
     }
 
+    /* BC-LLR-84 - Validação de Leitura de Chave GSE
+    No modo MAINT_WAIT, após abrir o arquivo /keys/gse_key.bin, o B/C deve
+    ler exatamente 32 bytes para o buffer de chave GSE. Caso a leitura 
+    retorne quantidade diferente de 32 bytes, o B/C deve registrar erro,
+    fechar o arquivo e retornar o erro ESP_FAIL -1
+    */
     if (fread(keys->gse_verify_key, 1, GSE_KEY_SIZE, gse_file) != GSE_KEY_SIZE)
     {
         ESP_LOGE(TAG, "Falha ao ler chave GSE");
@@ -104,6 +131,10 @@ esp_err_t auth_load_keys(auth_keys_t *keys)
     return ESP_OK;
 }
 
+/* BC-LLR-20 Limpeza do buffer da chave pré-compartilhada 
+O software do módulo B/C deve apagar o buffer onde as chaves do B/C 
+e o GSE foram carregadas para comparação após autenticação
+*/
 void auth_clear_keys(auth_keys_t *keys)
 {
     if (keys)
