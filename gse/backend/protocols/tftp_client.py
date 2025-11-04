@@ -39,11 +39,11 @@ BLOCK_SIZE = 512
 
 # ============================================================================
 # REQ: GSE-LLR-89: Constante de Timeout
-# Descrição: A constante de timeout (TIMEOUT_SEC) deve possuir valor ≥ 2s para acomodar operações lentas de flash.
+# Descrição: A constante de timeout (TIMEOUT_SEC) deve possuir valor ≥ 10s para acomodar operações lentas de flash.
 # Autor: Fabrício Carneiro Travassos
 # Revisor: Julia
 # ============================================================================
-TIMEOUT_SEC = 6
+TIMEOUT_SEC = 10
 
 # ============================================================================
 # REQ: GSE-LLR-90: Constante de Retentativas
