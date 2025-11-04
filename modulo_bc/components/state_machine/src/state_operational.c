@@ -49,7 +49,7 @@ static void state_operational_exit(void)
 {
     ESP_LOGI(TAG, "EXIT ST_OPERATIONAL");
 
-    /* BC-LLR-73 - Na saída do modo operacional, 
+    /* BC-LLR-72 - Na saída do modo operacional, 
     o B/C deve liberar todos os recursos associados ao botão de manutenção (GPIO, handlers, memória ) 
     para evitar vazamento de recursos e garantir que o botão mão influencie na manutenção */
     if (maint_button)

@@ -15,22 +15,24 @@ static void state_maint_wait_enter(void)
 {
     ESP_LOGI(TAG, "INIT ST_MAINT_WAIT");
 
-    /* Se já foi inicializado (retorno do teardown), pula reinicialização do WiFi e socket */
+    /* BC-LLR-6 Criação do ponto de acesso Wifi
+    Ao entrar no estado MAINT_WAIT, o módulo B/C deve inicializar o Wi-Fi em modo Access Point, 
+    configurado para operar no canal fixo 1 , somente se ele não tiver sido criado antes */
     if (!maint_wait_initialized)
     {
-        /* BC-LLR-6 - Criação do ponto de acesso Wifi - Ao entrar no estado MAINT_WAIT,
-        o módulo B/C deve inicializar o Wi-Fi
-        em modo Access Point, configurado para operar no canal fixo 1 */
+        /* BC-LLR -6 - 7 - 8 
+        Criação do ponto de acesso Wifi,
+        Configurações do WI-FI
+        Configuração IP do WI-Fi AP */
         ESP_LOGI(TAG, "WIFI softAP iniciando...");
         wifi_init_softap();
         ESP_LOGI(TAG, "WIFI softAP iniciado com sucesso");
 
-        /* Criação do socket UDP
-        AF_INET -> IPv4 exemplo 192.168.1.1
-        SOCK_DGRAM -> Tipo de socket para comunicação UDP
-        0 -> Protocolo padrão para UDP (IPPROTO_UDP)
-        */
         sock = socket(AF_INET, SOCK_DGRAM, 0);
+        /* BC-LLR-13 - Erro ao criar socket
+        No estado MAINT_WAIT caso haja erro ao criar o sock, 
+        o software do B/C deve ir para o estado de ERROR e parar a execução da tarefa
+        */
         if (sock < 0) /* retorna > 0 se sucesso (numero arbitrario do sistema)
                           retorno < 0  se erro*/
         {
@@ -40,20 +42,29 @@ static void state_maint_wait_enter(void)
 
         /* Configura um timeout (tempo máximo de espera)
         para operações de recepção no socket.
-        5 segundos eh o padrao RFC 1350 */
+        5 segundos eh o padrao RFC 1350, vamos usar 2 segundos */
         struct timeval tv;            /* Estrutura para definir o timeout */
-        tv.tv_sec = TFTP_TIMEOUT_SEC; /* Tempo de espera em segundos - 5 segundos em tftp.h */
-        tv.tv_usec = 0;               /* Tempo de espera em microsegundos - 0 microsegundos */
+        tv.tv_sec = 2;                /* BC-LLR-16 Tempo de espera em segundos - 2 segundos */
+        tv.tv_usec = 0;               /* BC-LLR-16 Tempo de espera em microsegundos - 0 microsegundos */
 
+        /* BC-LLR-16 */
         setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
 
-        /* Configura endereço do servidor */
+        /* BC-LLR-9 - Abertura do Socket 
+        O software do B/C, no estado MAINT_WAIT após conexão estabelecida com GSE, 
+        deve abrir um socket UDP para comunicação usando o protocolo ARINC615A(implementado via TFTP) na porta 69 
+        para aceitar requisições de transferência
+        */
         memset(&server_addr, 0, sizeof(server_addr));    /* zera todos os bits da estrutura */
         server_addr.sin_family = AF_INET;                /* Família de endereços IPv4 */
         server_addr.sin_port = htons(TFTP_PORT);         /* Porta do servidor TFTP - htons converte de host byte order para network byte order */
         server_addr.sin_addr.s_addr = htonl(INADDR_ANY); /* Endereço IP do servidor - htonl converte de host byte order para network byte order,
             INADDR_ANY significa que o servidor irá escutar em todas as interfaces de rede disponíveis */
 
+        /* BC-LLR-14 - Erro no bind da porta 69 
+        No estado MAINT_WAIT caso haja falha no bind inicial, 
+        o software do B/C deve ir para o estado de ERROR e parar a execução da tarefa
+        */
         if (bind(sock, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) /* Associa o socket ao endereço e porta especificados */
         {
             ESP_LOGE(TAG, "Erro no bind: errno=%d", errno);
@@ -71,31 +82,35 @@ static void state_maint_wait_enter(void)
         ESP_LOGI(TAG, "Sistema já inicializado, pulando configuração WiFi/socket");
     }
 
-    /* Carrega chaves de autenticação (sempre executa, mesmo em reinicializações) */
+    /* Carrega chaves de autenticação
+    Implementa BC-LLR-80, BC-LLR-81 , BC-LLR-82 , BC-LLR-83, BC-LLR-84
+    */
     if (auth_load_keys(&auth_keys) != ESP_OK)
     {
         ESP_LOGE(TAG, "Falha ao carregar chaves de autenticação");
         return;
     }
 
-    /* Aguarda primeira conexão do GSE para handshake */
-    ESP_LOGI(TAG, "Aguardando conexão inicial do GSE para autenticação...");
-
-    /* Realizar handshake de autenticação antes de processar qualquer request */
-    ESP_LOGI(TAG, "Iniciando handshake de autenticação...");
 
     while (1)
-    {
+    {   
+        /* BC-LLR-10 Autenticação de Aplicação Embraer - GSE
+        O software do B/C, no estado MAINT_WAIT após abertura do socket, 
+        deve receber uma chave de autenticação do GSE 
+        e compara com a chave de autenticação embarcada para autenticar GSE como aplicação Embraer
+
+        BC-LLR-11 Autenticação de Aplicação Embraer - B/C
+        O software do B/C, no estado MAINT_WAIT após validação da chave do GSE, 
+        deve enviar outra chave atestando aplicação Embraer para o GSE completando o handshake de autenticação
+        */
         esp_err_t handshake_result = auth_perform_handshake(sock, &client_addr, &auth_keys);
 
         if (handshake_result == ESP_OK)
         {
             break;
         }
-
-        if (handshake_result == ESP_ERR_TIMEOUT)
+        else if (handshake_result == ESP_ERR_TIMEOUT)
         {
-            ESP_LOGW(TAG, "Timeout aguardando GSE, tentando novamente...");
             continue;
         }
         else
@@ -105,7 +120,7 @@ static void state_maint_wait_enter(void)
     }
 
     ESP_LOGI(TAG, "Handshake de autenticação concluído com sucesso");
-    auth_clear_keys(&auth_keys); // Limpa buffers após handshake
+    auth_clear_keys(&auth_keys); /* BC-LLR-20 Limpeza do buffer da chave pré-compartilhada */
 }
 
 static fsm_state_t state_maint_wait_run(void)
@@ -123,6 +138,12 @@ static fsm_state_t state_maint_wait_run(void)
     n = recvfrom(sock, &req, sizeof(req), 0,
                  (struct sockaddr *)&client_addr, &addr_len);
 
+    /* BC-LLR-85 - Tratamento de Erros na Recepção de Pacotes
+    No estado MAINT_WAIT, caso ocorra erro na recepção de pacotes UDP (recvfrom retorna < 0),
+    o B/C deve diferenciar entre timeout esperado (errno EAGAIN ou EWOULDBLOCK) e erros críticos.
+    Para timeout, o sistema deve permanecer no estado MAINT_WAIT aguardando nova tentativa.
+    Para outros erros, deve registrar o erro e permanecer no estado MAINT_WAIT para recuperação.
+    */
     if (n < 0) /* tratamento de erro */
     {
         // CORREÇÃO: Timeout é esperado, não é erro crítico
@@ -135,6 +156,9 @@ static fsm_state_t state_maint_wait_run(void)
         return ST_MAINT_WAIT;
     }
 
+    /* BC-LLR-15  Erro de pacotes muito pequenos
+    No estado MAINT_WAIT caso pacotes recebidos sejam menores que 4 bytes(mínimo), 
+    o software deve desconsiderar e esperar novo pacote*/
     if (n < 4) /* tratamento de erro - pacote mínimo nao atingido */
     {
         ESP_LOGW(TAG, "Pacote muito pequeno recebido (%d bytes)", (int)n);

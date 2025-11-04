@@ -71,7 +71,11 @@ esp_err_t finalize_firmware_file(void)
         ESP_LOGI(TAG, "Removed existing final.bin");
     }
     else
-    {
+    {   
+        /* BC-LLR-66 - Erro de excluir arquivo final anterior
+        No estado SAVE, caso a remoção do arquivo final na partição falhar(não existe arquivo final), 
+        o software deve continuar sua execução e dar um log 
+        */
         ESP_LOGW(TAG, "No existing final.bin to remove (or removal failed)");
     }
 
@@ -81,7 +85,11 @@ esp_err_t finalize_firmware_file(void)
     na partição fs_main da memória flash
     */
     if (rename(TEMP_FILE_PATH, FINAL_FILE_PATH) != 0)
-    {
+    {   
+        /* BC-LLR-67 - Erro de renomear o arquivo temporário para final
+        No estado SAVE, caso haja erro ao renomear o arquivo temporário para final na partição firmware, 
+        o software deve ir para o estado de ERROR e parar a execução 
+        */
         ESP_LOGE(TAG, "Failed to rename temp.bin to final.bin");
         return ESP_FAIL;
     }

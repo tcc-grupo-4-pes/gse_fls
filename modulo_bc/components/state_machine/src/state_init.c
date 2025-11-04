@@ -17,28 +17,16 @@ static fsm_state_t state_init_run(void)
     /* BC-LLR-2 - Inicializações do estado INIT
     No modo INIT, o software deve executar, sequencialmente 
     (A) Iniciar NVS 
-    (B) Iniciar sistema de logs 
-    (C) Inicializar SPIFFs 
-    (D) Escrever chaves estática de autenticação;
+    (B) Inicializar SPIFFs 
+    (C) Escrever chaves estática de autenticação;
     */
     /* (A) Inicializar NVS */
     esp_err_t ret = nvs_flash_init();
-    if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND)
-    {
-        ESP_ERROR_CHECK(nvs_flash_erase());
-        ret = nvs_flash_init();
-    }
-    if (ret != ESP_OK)
-    {
-        ESP_LOGE(TAG, "Falha na inicialização do NVS: %s", esp_err_to_name(ret));
-        return ST_ERROR;
-    }
 
-
-    /* (C) Inicializar SPIFFs*/
+    /* (B) Inicializar SPIFFs*/
     esp_err_t spiffs_ret_firmware = mount_spiffs("firmware", FIRMWARE_MOUNT_POINT);
     esp_err_t spiffs_ret_keys = mount_spiffs("keys", KEYS_MOUNT_POINT);
-
+    
     /* BC-LLR-3 - Tratamento de erros na inicialização do SPIFFS
     No estado INIT caso haja erro ao montar a partição, 
     o software deve ir para o estado de ERROR e parar a execução

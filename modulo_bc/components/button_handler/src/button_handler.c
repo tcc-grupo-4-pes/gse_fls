@@ -23,7 +23,7 @@ esp_err_t button_init(const button_config_t *config, button_handle_t *handle)
         return ESP_ERR_INVALID_ARG;
     }
 
-    // Alocar handle
+    /* BC-LLR-5 - Alocar handle */
     struct button_handle_s *btn = malloc(sizeof(struct button_handle_s));
     if (!btn)
     {
@@ -31,7 +31,7 @@ esp_err_t button_init(const button_config_t *config, button_handle_t *handle)
         return ESP_ERR_NO_MEM;
     }
 
-    // Configurar handle
+    /* BC-LLR-5 */
     btn->gpio_num = config->gpio_num;
     btn->active_low = config->active_low;
     btn->last_state = false;
@@ -45,6 +45,11 @@ esp_err_t button_init(const button_config_t *config, button_handle_t *handle)
         .intr_type = GPIO_INTR_DISABLE};
 
     esp_err_t ret = gpio_config(&gpio_cfg);
+    
+    /* BC-LLR-79 Validação de configuração GPIO botão 
+    No modo INIT, em caso de erro na configuração do GPIO do botão, 
+    o B/C deve liberar recursos alocados para o botão e retornar -1
+    */
     if (ret != ESP_OK)
     {
         ESP_LOGE(TAG, "Falha ao configurar GPIO%d: %s", config->gpio_num, esp_err_to_name(ret));
@@ -66,11 +71,11 @@ bool button_is_pressed(button_handle_t handle)
         return false;
     }
 
-    // Ler estado atual do GPIO
+    /* BC-LLR-5 */
     int current_level = gpio_get_level(handle->gpio_num);
     bool is_active = handle->active_low ? (current_level == 0) : (current_level == 1);
 
-    // Detectar transição de solto para pressionado
+    /* BC-LLR-5 */
     if (is_active && !handle->last_state)
     {
         handle->last_state = true;
@@ -85,6 +90,10 @@ bool button_is_pressed(button_handle_t handle)
     return false;
 }
 
+/* BC-LLR-72 - Liberação de recursos do botão
+Na saída do modo operacional, o B/C deve liberar todos os recursos associados ao botão de manutenção 
+(GPIO, handlers, memória) para evitar vazamento de recursos e garantir que o botão não influencie na manutenção
+*/
 esp_err_t button_deinit(button_handle_t handle)
 {
     if (!handle)
@@ -94,7 +103,7 @@ esp_err_t button_deinit(button_handle_t handle)
 
     ESP_LOGI(TAG, "Liberando recursos do botão GPIO%d", handle->gpio_num);
 
-    // Reset do GPIO (opcional)
+    // Reset do GPIO para estado padrão
     gpio_reset_pin(handle->gpio_num);
 
     // Liberar memória

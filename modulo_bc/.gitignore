@@ -1,7 +1,8 @@
-.vscode/
+.vscode
+
 build/
 README.md
 sdkconfig
 sdkconfig.old
-docs
-/modulo_bc/.vscode/
+docs/
+
