@@ -3,10 +3,14 @@ import QtQuick.Controls 2.15
 
 
 // ============================================================================
-// REQ: GSE-LLR-13 – Página dedicada de Login
+// REQ: GSE-LLR-13 – Página Dedicada de Login do GSE-SW
 // Tipo: Requisito Funcional
-// Descrição: O sistema deve possuir uma página exclusiva para login, exibida
-// automaticamente na inicialização e responsável por autenticar o operador.
+// Descrição: O sistema deve conter uma página exclusiva de login, responsável por
+// autenticar o operador antes de liberar o acesso às demais funcionalidades do software.
+// A página de login deve seguir o padrão visual da Embraer, apresentando campos para
+// usuário e senha, além de um botão “Entrar”. Ela deve ser a primeira tela exibida ao
+// iniciar o aplicativo, bloqueando o acesso às demais páginas até que o login seja
+// concluído com sucesso.
 // Autor: Fabrício
 // Revisor: Julia
 // ============================================================================
@@ -41,9 +45,11 @@ Item {
         // ============================================================================
         // REQ: GSE-LLR-8 – Campo de Entrada para Nome de Usuário
         // Tipo: Requisito Funcional
-        // Descrição: A tela de login deve conter um campo de entrada de texto destinado
-        // ao nome de usuário, exibindo um placeholder “Usuário ou e-mail”, permitindo
-        // digitação livre e mantendo o padrão visual Embraer.
+        // Descrição: A tela de login do software GSE deve conter um campo de entrada de
+        // texto destinado ao nome de usuário. Esse campo deve permitir a digitação livre,
+        // aceitar letras, números e caracteres especiais comuns (como “@” e “.”), e exibir
+        // um texto de placeholder que indique claramente sua função (por exemplo,
+        // “Usuário ou e-mail”).
         // Autor: Fabrício
         // Revisor: Julia
         // ============================================================================
@@ -70,9 +76,13 @@ Item {
         // ============================================================================
         // REQ: GSE-LLR-9 – Campo de Entrada para Senha
         // Tipo: Requisito Funcional
-        // Descrição: A tela de login deve conter um campo de entrada para senha,
-        // posicionado abaixo do campo de usuário, exibindo placeholder "Senha" e
-        // mascarando os caracteres digitados conforme padrão Embraer.
+        // Descrição: A tela de login do software GSE deve conter um campo de entrada de
+        // senha posicionado abaixo do campo de nome de usuário. O campo deve mascarar os
+        // caracteres digitados, exibindo pontos ou asteriscos no lugar dos caracteres reais,
+        // preservando a confidencialidade das credenciais. Além disso, deve apresentar um
+        // texto de placeholder informativo (por exemplo, “Senha”), estar visualmente
+        // alinhado aos demais elementos da tela e respeitar as cores e margens do padrão
+        // visual da Embraer.
         // Autor: Fabrício
         // Revisor: Julia
         // ============================================================================
@@ -98,9 +108,13 @@ Item {
         // ============================================================================
         // REQ: GSE-LLR-10 – Exibição de Mensagem de Erro para Credenciais Inválidas
         // Tipo: Requisito Funcional
-        // Descrição: A tela de login deve exibir uma mensagem de erro em texto vermelho
-        // abaixo do campo de senha quando o usuário ou senha forem inválidos. O texto
-        // deve desaparecer após uma nova tentativa bem-sucedida.
+        // Descrição: A tela de login do software GSE deve exibir uma mensagem de erro textual
+        // sempre que o operador inserir credenciais inválidas (usuário ou senha incorretos).
+        // Essa mensagem deve ser apresentada abaixo do campo de senha, em cor vermelha (#d14343)
+        // e com fonte legível, de forma clara e objetiva. O texto deve desaparecer
+        // automaticamente quando o operador corrigir as informações ou após uma nova tentativa
+        // bem-sucedida de login. Quando nenhuma falha estiver presente, o campo de erro deve
+        // permanecer invisível, não ocupando espaço extra na interface.
         // Autor: Fabrício
         // Revisor: Julia
         // ============================================================================
@@ -170,13 +184,19 @@ Item {
             }
         }
 
-        // --------------------------------------------------------------------------
-        // REQ: GSE-LLR-10 – Exibir mensagem de erro para credenciais inválidas
+        // ============================================================================
+        // REQ: GSE-LLR-10 – Exibição de Mensagem de Erro para Credenciais Inválidas
         // Tipo: Requisito Funcional
-        // Descrição: Se a verificação falhar, a tela de login deve exibir a mensagem
-        // de erro em vermelho abaixo do campo de senha.
-        // Autor: Fabrício | Revisor: Julia
-        // --------------------------------------------------------------------------
+        // Descrição: A tela de login do software GSE deve exibir uma mensagem de erro textual
+        // sempre que o operador inserir credenciais inválidas (usuário ou senha incorretos).
+        // Essa mensagem deve ser apresentada abaixo do campo de senha, em cor vermelha (#d14343)
+        // e com fonte legível, de forma clara e objetiva. O texto deve desaparecer
+        // automaticamente quando o operador corrigir as informações ou após uma nova tentativa
+        // bem-sucedida de login. Quando nenhuma falha estiver presente, o campo de erro deve
+        // permanecer invisível, não ocupando espaço extra na interface.
+        // Autor: Fabrício
+        // Revisor: Julia
+        // ============================================================================
         Connections {
             target: backend
             function onLoginFailed(msg) {
