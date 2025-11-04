@@ -78,11 +78,6 @@ static void state_maint_wait_enter(void)
         return;
     }
 
-    /* Aguarda primeira conexão do GSE para handshake */
-    ESP_LOGI(TAG, "Aguardando conexão inicial do GSE para autenticação...");
-
-    /* Realizar handshake de autenticação antes de processar qualquer request */
-    ESP_LOGI(TAG, "Iniciando handshake de autenticação...");
 
     while (1)
     {
@@ -92,10 +87,8 @@ static void state_maint_wait_enter(void)
         {
             break;
         }
-
-        if (handshake_result == ESP_ERR_TIMEOUT)
+        else if (handshake_result == ESP_ERR_TIMEOUT)
         {
-            ESP_LOGW(TAG, "Timeout aguardando GSE, tentando novamente...");
             continue;
         }
         else

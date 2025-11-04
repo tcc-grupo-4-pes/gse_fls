@@ -5,7 +5,6 @@
 #include <string.h>
 #include <stdio.h>
 #include "esp_log.h"
-#include "esp_timer.h"
 #include "lwip/sockets.h"
 #include <errno.h>
 
@@ -116,15 +115,6 @@ void auth_clear_keys(auth_keys_t *keys)
 
 esp_err_t auth_perform_handshake(int sock, struct sockaddr_in *client_addr, auth_keys_t *keys)
 {
-    // Verifica se já foi autenticado
-    if (authenticated)
-    {
-        ESP_LOGI(TAG, "Sistema já autenticado, pulando handshake");
-        return ESP_OK;
-    }
-
-    ESP_LOGI(TAG, "Iniciando handshake de autenticação");
-
     if (!keys)
     {
         ESP_LOGE(TAG, "Chaves não carregadas");
@@ -134,55 +124,50 @@ esp_err_t auth_perform_handshake(int sock, struct sockaddr_in *client_addr, auth
     socklen_t addr_len = sizeof(*client_addr);
     tftp_packet_t packet;
 
-    // Passo 1: Aguarda chave do GSE
-    ESP_LOGI(TAG, "Aguardando chave do GSE...");
-
-    int64_t start_time_us = esp_timer_get_time();
-    int recv_len = -1;
 
     while (1)
     {
-        addr_len = sizeof(*client_addr);
-        recv_len = recvfrom(sock, &packet, sizeof(packet), 0,
-                            (struct sockaddr *)client_addr, &addr_len);
+        ssize_t recv_len = recvfrom(sock, &packet, sizeof(packet), 0,
+                                    (struct sockaddr *)client_addr, &addr_len);
 
-        if (recv_len >= 0)
+        if (recv_len < 0)
         {
-            break; // Pacote recebido com sucesso
-        }
-
-        if (errno == EAGAIN || errno == EWOULDBLOCK)
-        {
-            int64_t elapsed_ms = (esp_timer_get_time() - start_time_us) / 1000;
-            if (elapsed_ms >= 180000)
+            if (errno == EAGAIN || errno == EWOULDBLOCK)
             {
-                ESP_LOGW(TAG, "Timeout aguardando chave do GSE");
                 return ESP_ERR_TIMEOUT;
             }
+            ESP_LOGE(TAG, "Erro ao receber chave do GSE: errno=%d", errno);
+            return ESP_FAIL;
+        }
 
-            // Mantém espera até que o GSE se conecte
+        ESP_LOGI(TAG, "Iniciando handshake de autenticação");
+
+    
+        // Verifica se é um pacote DATA com a chave GSE
+        if (ntohs(packet.opcode) != OP_DATA)
+        {
+            ESP_LOGW(TAG, "Pacote recebido não é DATA (opcode=%d), ignorando", ntohs(packet.opcode));
             continue;
         }
 
-        ESP_LOGE(TAG, "Erro ao receber chave do GSE: errno=%d", errno);
-        return ESP_FAIL;
-    }
+        // Verifica tamanho da chave
+        int data_len = recv_len - 4;
+        if (data_len != GSE_KEY_SIZE)
+        {
+            ESP_LOGW(TAG, "Tamanho da chave GSE inválido (%d bytes, esperado %d)", data_len, GSE_KEY_SIZE);
+            continue;
+        }
 
-    // Verifica se é um pacote DATA com a chave GSE
-    if (ntohs(packet.opcode) != OP_DATA)
-    {
-        ESP_LOGE(TAG, "Pacote recebido não é DATA");
-        return ESP_FAIL;
-    }
+        // Verifica se a chave recebida coincide com a esperada
+        if (memcmp(packet.data.data, keys->gse_verify_key, GSE_KEY_SIZE) != 0)
+        {
+            ESP_LOGE(TAG, "Chave GSE inválida - autenticação falhou");
+            return ESP_FAIL;
+        }
 
-    // Verifica se a chave recebida coincide com a esperada
-    if (memcmp(packet.data.data, keys->gse_verify_key, GSE_KEY_SIZE) != 0)
-    {
-        ESP_LOGE(TAG, "Chave GSE inválida - autenticação falhou");
-        return ESP_FAIL;
+        ESP_LOGI(TAG, "Chave GSE válida - enviando ACK");
+        break;
     }
-
-    ESP_LOGI(TAG, "Chave GSE válida - enviando ACK");
 
     // Envia ACK para a chave recebida
     tftp_packet_t ack;
@@ -191,7 +176,7 @@ esp_err_t auth_perform_handshake(int sock, struct sockaddr_in *client_addr, auth
 
     if (sendto(sock, &ack, 4, 0, (struct sockaddr *)client_addr, addr_len) < 0)
     {
-        ESP_LOGE(TAG, "Erro ao enviar ACK");
+        ESP_LOGE(TAG, "Erro ao enviar ACK para chave GSE: errno=%d", errno);
         return ESP_FAIL;
     }
 
@@ -210,43 +195,31 @@ esp_err_t auth_perform_handshake(int sock, struct sockaddr_in *client_addr, auth
         return ESP_FAIL;
     }
 
-    // Aguarda ACK do GSE para nossa chave
-    start_time_us = esp_timer_get_time();
+    // Passo 3: Aguarda ACK do GSE para nossa chave
+    ESP_LOGI(TAG, "Aguardando confirmação da chave BC...");
 
-    while (1)
+    ssize_t recv_len = recvfrom(sock, &packet, sizeof(packet), 0,
+                                (struct sockaddr *)client_addr, &addr_len);
+
+    if (recv_len < 0)
     {
-        addr_len = sizeof(*client_addr);
-        recv_len = recvfrom(sock, &packet, sizeof(packet), 0,
-                            (struct sockaddr *)client_addr, &addr_len);
-
-        if (recv_len >= 0)
-        {
-            break;
-        }
-
         if (errno == EAGAIN || errno == EWOULDBLOCK)
         {
-            int64_t elapsed_ms = (esp_timer_get_time() - start_time_us) / 1000;
-            if (elapsed_ms >= 60000)
-            {
-                ESP_LOGW(TAG, "Timeout aguardando ACK da chave BC");
-                return ESP_ERR_TIMEOUT;
-            }
-            continue;
+            return ESP_ERR_TIMEOUT;
         }
-
         ESP_LOGE(TAG, "Erro ao receber ACK da chave BC: errno=%d", errno);
         return ESP_FAIL;
     }
 
-    if (ntohs(packet.opcode) != OP_ACK)
+    if (ntohs(packet.opcode) != OP_ACK || ntohs(packet.data.block) != 1)
     {
-        ESP_LOGE(TAG, "GSE não confirmou chave BC");
+        ESP_LOGE(TAG, "GSE não confirmou chave BC (opcode=%d, block=%d)",
+                 ntohs(packet.opcode), ntohs(packet.data.block));
         return ESP_FAIL;
     }
 
     ESP_LOGI(TAG, "Handshake de autenticação concluído com sucesso");
-    authenticated = true; // Marca como autenticado
+    authenticated = true;
     return ESP_OK;
 }
 

@@ -326,10 +326,11 @@ compile_commands.json
 .ionide
 
 # ESP-IDF
-
 /modulo_bc/.devcontainer
-/modulo_bc/.vscode
+/modulo_bc/.vscode/*
 /modulo_bc/build
 /modulo_bc/sdkconfig
 /modulo_bc/sdkconfig.ci
 /modulo_bc/sdkconfig.old%
+modulo_bc/.vscode/settings.json
+
