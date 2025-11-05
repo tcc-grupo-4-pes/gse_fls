@@ -4,7 +4,7 @@ from pathlib import Path
 
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtQml import QQmlApplicationEngine
-from backend.controllers.general import BackendController
+from backend.controllers.general import BackendController, set_application_icon
 from backend.controllers.upload_controller import UploadController  # << NOVO IMPORT
 
 if __name__ == "__main__":
@@ -22,6 +22,7 @@ if __name__ == "__main__":
 
     qml_file = Path(__file__).resolve().parent / "frontend/main.qml"
     engine.load(qml_file)
+    set_application_icon(app)
     if not engine.rootObjects():
         sys.exit(-1)
     sys.exit(app.exec())

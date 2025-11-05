@@ -2,9 +2,30 @@
 from __future__ import annotations
 from PySide6.QtCore import QObject, Slot, Signal
 from PySide6.QtWidgets import QApplication
-from PySide6.QtGui import QGuiApplication
+from PySide6.QtGui import QGuiApplication, QIcon
 from pathlib import Path
 import json, os, base64, hashlib
+
+# =============================================================================
+# REQ: GSE-LLR-27 – Ícone do aplicativo com logotipo da Embraer
+# Tipo: Requisito Funcional | Rastreado de: GSE-HLR-20
+# Título: Ícone do aplicativo com logotipo da Embraer
+# Descrição: O software GSE deve utilizar o logotipo oficial da Embraer como
+# ícone da aplicação, preservando proporções e a cor azul institucional
+# (#0067B1) sobre fundo branco, visível na barra de título, barra de tarefas
+# e atalhos do sistema operacional.
+# Autor: Fabrício | Revisor: Julia
+# Arquivo: general.py
+# =============================================================================
+def set_application_icon(app: QApplication) -> None:
+    """Define o ícone do aplicativo GSE."""
+    icon_path = r"gse\frontend\images\svg_images\embraer_icon.svg"
+
+    if os.path.exists(icon_path):
+        app.setWindowIcon(QIcon(icon_path))
+        print(f"[INFO] Ícone do aplicativo definido: {icon_path}")
+    else:
+        print(f"[AVISO] Ícone não encontrado em: {icon_path}")
 
 
 class BackendController(QObject):
