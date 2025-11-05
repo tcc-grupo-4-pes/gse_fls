@@ -128,7 +128,7 @@ void handle_wrq(int sock, struct sockaddr_in *client, char *filename, lur_data_t
         return;
     }
 
-    // Cria socket efêmero para transferência (protocolo TFTP padrão)
+    /* BC-LLR 23 Porta Efêmera para transferência */
     int transfer_sock = socket(AF_INET, SOCK_DGRAM, 0);
     if (transfer_sock < 0)
     {
@@ -145,6 +145,7 @@ void handle_wrq(int sock, struct sockaddr_in *client, char *filename, lur_data_t
 
     if (bind(transfer_sock, (struct sockaddr *)&transfer_addr, sizeof(transfer_addr)) < 0)
     {
+        /* BC-LLR-51 Erro no bind do socket de transferência */
         ESP_LOGE(TAG, "Erro no bind do socket de transferência: errno=%d", errno);
         close(transfer_sock);
         return;
@@ -207,7 +208,7 @@ void handle_wrq(int sock, struct sockaddr_in *client, char *filename, lur_data_t
         expected_block++;
 
         if (data_len < BLOCK_SIZE)
-            break; // Ultimo bloco
+            break; // Último bloco
     }
 
     if (total_received == 0)
@@ -217,9 +218,13 @@ void handle_wrq(int sock, struct sockaddr_in *client, char *filename, lur_data_t
         return;
     }
 
-    // parse LUR using arinc helper
     if (parse_lur(lur_buf, total_received, lur_file) != 0)
-    {
+    {   
+        /* BC-LLR-57 Erro no parse do arquivo .LUR 
+        No estado UPLOAD_PREP, após armazenar em um buffer o arquivo .LUR, 
+        caso haja algum erro ao parsear o arquivo para obter as informações de PN e nome do arquivo,
+         o software deve ir para o estado ERROR e parar a execução
+        */
         ESP_LOGE(TAG, "Falha ao parsear LUR");
         close(transfer_sock);
         return;
@@ -235,11 +240,11 @@ void handle_wrq(int sock, struct sockaddr_in *client, char *filename, lur_data_t
     ESP_LOGI(TAG, "WRQ concluido, socket de transferência fechado");
 }
 
+/* BC-LLR-30 */
 void make_wrq(int sock, struct sockaddr_in *client_addr, const char *lus_filename, const lus_data_t *lus_data)
 {
     ESP_LOGI(TAG, "Iniciando WRQ para envio de %s", lus_filename);
-
-    // Envia WRQ do socket principal (porta 69)
+ 
     tftp_packet_t wrq;
     wrq.opcode = htons(OP_WRQ);
     snprintf(wrq.request, sizeof(wrq.request), "%s%coctet%c", lus_filename, 0, 0);
@@ -251,6 +256,7 @@ void make_wrq(int sock, struct sockaddr_in *client_addr, const char *lus_filenam
         return;
     }
 
+    /* BC-LLR-23 */
     // Aguarda ACK(0) que virá da porta efêmera do cliente
     tftp_packet_t ack;
     struct sockaddr_in ack_addr;
@@ -269,15 +275,19 @@ void make_wrq(int sock, struct sockaddr_in *client_addr, const char *lus_filenam
         return;
     }
 
+    /* BC-LLR-23 */
     // Cliente mudou para porta efêmera, salva o novo endereço
     ESP_LOGI(TAG, "Cliente mudou para TID (porta) %d", ntohs(ack_addr.sin_port));
 
-    // Envia dados para a porta efêmera do cliente
+    //BBC-LLR-16
     tftp_packet_t data_pkt;
     data_pkt.opcode = htons(OP_DATA);
     data_pkt.data.block = htons(1);
     memcpy(data_pkt.data.data, lus_data, sizeof(lus_data_t));
 
+    /*  BC-LLR-51 Erro no socket - UPLOAD_PREP
+    No estado UPLOAD_PREP, caso haja algum erro ao criar ou dar o bind no socket de transferência 
+    (criado com porta efêmera), o software deve ir para o estado de ERROR e parar a execução*/
     if (sendto(sock, &data_pkt, 4 + sizeof(lus_data_t), 0,
                (struct sockaddr *)&ack_addr, sizeof(ack_addr)) < 0)
     {

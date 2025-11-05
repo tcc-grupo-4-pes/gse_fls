@@ -93,6 +93,15 @@ int init_lus(lus_data_t *lus, arinc_op_status_code_t status_code,
     return 0;
 }
 
+/* BC-LLR-33  Campos do .LUR 
+O arquivo .LUR recebido do GSE deve ser preenchido com os seguintes campos: 
+comprimento do .LUR(32 bits), versão de protocolo(16bits - "A4"), 
+número de arquivos a serem recebidos(16bits - no caso apenas 1), 
+comprimento da string do nome do arquivo a ser carregado(8 bits), 
+string do nome do arquivo a ser carregado(até 256 bytes), 
+tamanho da string com PN (8 bits), string com PN(até 256 bytes) 
+
+*/
 int parse_lur(const uint8_t *buf, size_t len, lur_data_t *out)
 {
     if (!buf || !out || len < 8)
@@ -126,7 +135,6 @@ int parse_lur(const uint8_t *buf, size_t len, lur_data_t *out)
     p += 2;
     remaining -= 2;
 
-    // We'll only parse the first header file and load part number
     if (num_headers == 0)
     {
         ESP_LOGW(TAG, "parse_lur: num_headers == 0");
