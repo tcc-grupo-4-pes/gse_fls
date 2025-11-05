@@ -45,7 +45,9 @@ static fsm_state_t state_init_run(void)
 
     ESP_LOGI(TAG, "Partições SPIFFS montadas com sucesso");
 
-    /* (C) Escrever chaves estáticas de autenticação */
+    /* BC-LLR-50 - Partição com chaves de autenticação
+    A partição keys deve conter as chaves pré-compartilhadas para verificação de autenticidade do GSE bem como
+    as chaves enviadas ao GSE para autenticar o BC como aplicação Embraer*/
     if (auth_write_static_keys() != ESP_OK)
     {
         ESP_LOGE(TAG, "Falha ao escrever chaves de autenticação");

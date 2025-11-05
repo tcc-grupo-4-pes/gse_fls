@@ -57,7 +57,7 @@ static void state_maint_wait_enter(void)
         */
         memset(&server_addr, 0, sizeof(server_addr));    /* zera todos os bits da estrutura */
         server_addr.sin_family = AF_INET;                /* Família de endereços IPv4 */
-        server_addr.sin_port = htons(TFTP_PORT);         /* Porta do servidor TFTP - htons converte de host byte order para network byte order */
+        server_addr.sin_port = htons(TFTP_PORT);         /* BC-LLR-90 Porta 69 do TFTP - htons converte de host byte order para network byte order */
         server_addr.sin_addr.s_addr = htonl(INADDR_ANY); /* Endereço IP do servidor - htonl converte de host byte order para network byte order,
             INADDR_ANY significa que o servidor irá escutar em todas as interfaces de rede disponíveis */
 

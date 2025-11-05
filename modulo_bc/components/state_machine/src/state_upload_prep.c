@@ -47,7 +47,7 @@ static fsm_state_t state_upload_prep_run(void)
     No estado UPLOAD_PREP, após o envio do primeiro .LUS, 
     caso seja recebido uma requisição que não seja de escrita do .LUR, 
     o software deve ignorar e esperar uma nova requisição */
-    opcode = ntohs(req.opcode);
+    opcode = ntohs(req.opcode);/*BC-LLR-89*/
     if (opcode == OP_WRQ)
     {
         filename = req.request;
@@ -77,6 +77,7 @@ static fsm_state_t state_upload_prep_run(void)
     }
     else
     {
+        /* BC-LLR-18*/
         ESP_LOGW(TAG, "Opcode desconhecido recebido: %d", opcode);
         return ST_ERROR;
     }

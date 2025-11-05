@@ -24,7 +24,7 @@ int init_lui(lui_data_t *lui, arinc_op_status_code_t status_code, const char *de
     memcpy(lui->protocol_version, "A4", 2);
 
     // Set código de status (converter para ordem de bytes de rede)
-    lui->status_code = htons(status_code);
+    lui->status_code = htons(status_code); /*BC-LLR-90*/
 
     // Set descrição e seu tamanho
     size_t desc_len = strlen(description);
@@ -65,7 +65,7 @@ int init_lus(lus_data_t *lus, arinc_op_status_code_t status_code,
     memcpy(lus->protocol_version, "A4", 2);
 
     // Set status code (convert to network byte order)
-    lus->status_code = htons(status_code);
+    lus->status_code = htons(status_code); /*BC-LLR-90*/
 
     // Set description and its length
     size_t desc_len = strlen(description);
@@ -78,7 +78,7 @@ int init_lus(lus_data_t *lus, arinc_op_status_code_t status_code,
     lus->description[desc_len] = '\0';
 
     // Set counter (convert to network byte order)
-    lus->counter = htons(counter);
+    lus->counter = htons(counter); /*BC-LLR-90*/
 
     // Set timers to 0 (already done by memset)
     lus->exception_timer = 0;
@@ -131,7 +131,7 @@ int parse_lur(const uint8_t *buf, size_t len, lur_data_t *out)
     // num_header_files (2)
     if (remaining < 2)
         return -1;
-    uint16_t num_headers = ntohs(*(uint16_t *)p);
+    uint16_t num_headers = ntohs(*(uint16_t *)p); /*BC-LLR-89*/
     p += 2;
     remaining -= 2;
 
@@ -178,7 +178,7 @@ int parse_lur(const uint8_t *buf, size_t len, lur_data_t *out)
     // Fill remaining fixed fields in network byte order
     out->file_length = htonl(file_length);
     memcpy(out->protocol_version, proto, 2);
-    out->num_header_files = htons(num_headers);
+    out->num_header_files = htons(num_headers); /*BC-LLR-90*/
 
     ESP_LOGI(TAG, "parse_lur: parsed header='%s' part='%s'", out->header_filename, out->load_part_number);
     return 0;

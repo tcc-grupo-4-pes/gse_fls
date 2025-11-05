@@ -45,7 +45,7 @@ void handle_rrq(int sock, struct sockaddr_in *client, char *filename)
     }
     socklen_t addr_len = sizeof(transfer_addr);
     getsockname(transfer_sock, (struct sockaddr *)&transfer_addr, &addr_len);
-    ESP_LOGI(TAG, "Socket de transferência criado na porta %d (TID)", ntohs(transfer_addr.sin_port));
+    ESP_LOGI(TAG, "Socket de transferência criado na porta %d (TID)", ntohs(transfer_addr.sin_port)); /*BC-LLR-89*/
 
     /* BC-LLR-24 Criação do arquivo .LUI
     No estado MAINT_WAIT, após receber a requisição de leitura do arquivo de inicialização deve criar
@@ -136,7 +136,7 @@ void handle_wrq(int sock, struct sockaddr_in *client, char *filename, lur_data_t
         return;
     }
 
-    // Bind em porta efêmera
+    /* BC-LLR-23*/
     struct sockaddr_in transfer_addr;
     memset(&transfer_addr, 0, sizeof(transfer_addr));
     transfer_addr.sin_family = AF_INET;
@@ -151,14 +151,14 @@ void handle_wrq(int sock, struct sockaddr_in *client, char *filename, lur_data_t
         return;
     }
 
-    // Obtém a porta efêmera atribuída
+    /* BC-LLR-23 */
     socklen_t addr_len = sizeof(transfer_addr);
     getsockname(transfer_sock, (struct sockaddr *)&transfer_addr, &addr_len);
-    ESP_LOGI(TAG, "Socket de transferência criado na porta %d (TID)", ntohs(transfer_addr.sin_port));
+    ESP_LOGI(TAG, "Socket de transferência criado na porta %d (TID)", ntohs(transfer_addr.sin_port)); /*BC-LLR-89*/
 
     // Envia ACK(0) do socket efêmero para o cliente
     tftp_packet_t ack;
-    ack.opcode = htons(OP_ACK);
+    ack.opcode = htons(OP_ACK);/*BC-LLR-90*/
     ack.block = htons(0);
     sendto(transfer_sock, &ack, 4, 0, (struct sockaddr *)client, sizeof(*client));
 
@@ -178,15 +178,16 @@ void handle_wrq(int sock, struct sockaddr_in *client, char *filename, lur_data_t
     while (1)
     {
         ssize_t n = recvfrom(transfer_sock, &pkt, sizeof(pkt), 0,
-                             (struct sockaddr *)&recv_addr, &recv_len);
+                             (struct sockaddr *)&recv_addr, &recv_len); /*BC-LLR-27*/
         if (n < 0)
         {
             ESP_LOGW(TAG, "Timeout ou erro no recebimento (errno=%d)", errno);
             break;
         }
 
-        if (ntohs(pkt.opcode) != OP_DATA || ntohs(pkt.data.block) != expected_block)
+        if (ntohs(pkt.opcode) != OP_DATA || ntohs(pkt.data.block) != expected_block)/*BC-LLR-89*/
         {
+            /* BC-LLR-18*/
             ESP_LOGW(TAG, "Pacote inesperado (opcode=%d, block=%d)",
                      ntohs(pkt.opcode), ntohs(pkt.data.block));
             upload_failure_count++;
@@ -200,9 +201,9 @@ void handle_wrq(int sock, struct sockaddr_in *client, char *filename, lur_data_t
             total_received += data_len;
         }
 
-        ack.opcode = htons(OP_ACK);
+        ack.opcode = htons(OP_ACK); /*BC-LLR-90*/
         ack.block = htons(expected_block);
-        sendto(transfer_sock, &ack, 4, 0, (struct sockaddr *)client, sizeof(*client));
+        sendto(transfer_sock, &ack, 4, 0, (struct sockaddr *)client, sizeof(*client)); /*BC-LLR-28*/
 
         ESP_LOGI(TAG, "Bloco %d recebido (%d bytes)", expected_block, data_len);
         expected_block++;
@@ -246,12 +247,15 @@ void make_wrq(int sock, struct sockaddr_in *client_addr, const char *lus_filenam
     ESP_LOGI(TAG, "Iniciando WRQ para envio de %s", lus_filename);
  
     tftp_packet_t wrq;
-    wrq.opcode = htons(OP_WRQ);
+    wrq.opcode = htons(OP_WRQ); /*BC-LLR-90*/
     snprintf(wrq.request, sizeof(wrq.request), "%s%coctet%c", lus_filename, 0, 0);
 
     if (sendto(sock, &wrq, strlen(lus_filename) + 8, 0,
                (struct sockaddr *)client_addr, sizeof(*client_addr)) < 0)
     {
+        /*BC-LLR-69 - Erro ao enviar o FINAL.LUS
+        No estado TEARDOWN, caso haja algum erro ao fazer a requisição de escrita e envio do arquivo FINAL.LUS, 
+        o software deve escrever log de erro e cancelar o envio*/
         ESP_LOGE(TAG, "Erro ao enviar WRQ: errno=%d", errno);
         return;
     }
@@ -269,7 +273,7 @@ void make_wrq(int sock, struct sockaddr_in *client_addr, const char *lus_filenam
         return;
     }
 
-    if (ntohs(ack.opcode) != OP_ACK || ntohs(ack.block) != 0)
+    if (ntohs(ack.opcode) != OP_ACK || ntohs(ack.block) != 0) /*BC-LLR-89*/
     {
         ESP_LOGE(TAG, "ACK inicial invalido");
         return;
@@ -281,7 +285,7 @@ void make_wrq(int sock, struct sockaddr_in *client_addr, const char *lus_filenam
 
     //BBC-LLR-16
     tftp_packet_t data_pkt;
-    data_pkt.opcode = htons(OP_DATA);
+    data_pkt.opcode = htons(OP_DATA); /*BC-LLR-90*/
     data_pkt.data.block = htons(1);
     memcpy(data_pkt.data.data, lus_data, sizeof(lus_data_t));
 
@@ -296,13 +300,13 @@ void make_wrq(int sock, struct sockaddr_in *client_addr, const char *lus_filenam
     }
 
     if (recvfrom(sock, &ack, sizeof(ack), 0,
-                 (struct sockaddr *)&ack_addr, &ack_len) < 0)
+                 (struct sockaddr *)&ack_addr, &ack_len) < 0) /*BC-LLR-27*/
     {
         ESP_LOGE(TAG, "Erro ao receber ACK final: errno=%d", errno);
         return;
     }
 
-    if (ntohs(ack.opcode) != OP_ACK || ntohs(ack.block) != 1)
+    if (ntohs(ack.opcode) != OP_ACK || ntohs(ack.block) != 1) /*BC-LLR-89*/
     {
         ESP_LOGE(TAG, "ACK final invalido");
         return;
@@ -336,7 +340,7 @@ void make_rrq(int sock, struct sockaddr_in *client_addr, const char *filename, u
        solicitando o arquivo de firmware especificado no LUR
     */
     tftp_packet_t rrq;
-    rrq.opcode = htons(OP_RRQ);
+    rrq.opcode = htons(OP_RRQ);  /*BC-LLR-90*/
     snprintf(rrq.request, sizeof(rrq.request), "%s%coctet%c", filename, 0, 0);
 
 
@@ -362,7 +366,7 @@ void make_rrq(int sock, struct sockaddr_in *client_addr, const char *filename, u
     mbedtls_sha256_starts(&sha_ctx, 0);
 
     size_t total_bytes = 0;
-    struct sockaddr_in server_tid_addr; // Porta efêmera do servidor (GSE)
+    struct sockaddr_in server_tid_addr; // Porta efêmera do servidor (GSE) BC-LLR-23
     int first_packet = 1;
 
     while (1)
@@ -394,7 +398,7 @@ void make_rrq(int sock, struct sockaddr_in *client_addr, const char *filename, u
         if (first_packet)
         {
             server_tid_addr = data_addr;
-            ESP_LOGI(TAG, "Servidor GSE usando TID (porta) %d", ntohs(server_tid_addr.sin_port));
+            ESP_LOGI(TAG, "Servidor GSE usando TID (porta) %d", ntohs(server_tid_addr.sin_port)); /*BC-LLR-89*/
             first_packet = 0;
         }
 
@@ -403,8 +407,9 @@ void make_rrq(int sock, struct sockaddr_in *client_addr, const char *filename, u
            caso seja recebido um pacote TFTP que não tenha OP code de DATA, 
            o software deve desconsiderar o pacote e esperar um novo pacote
         */
-        if (ntohs(data_pkt.opcode) != OP_DATA)
+        if (ntohs(data_pkt.opcode) != OP_DATA) /*BC-LLR-89*/
         {
+            /*BC-LLR-18*/
             ESP_LOGW(TAG, "Pacote inesperado recebido (opcode=%d)", ntohs(data_pkt.opcode));
             continue;
         }
@@ -484,7 +489,7 @@ void make_rrq(int sock, struct sockaddr_in *client_addr, const char *filename, u
            ir para o estado ERROR e parar a execução
         */
         if (sendto(sock, &ack, 4, 0,
-                   (struct sockaddr *)&server_tid_addr, sizeof(server_tid_addr)) < 0)
+                   (struct sockaddr *)&server_tid_addr, sizeof(server_tid_addr)) < 0) /*BC-LLR-28, BC-LLR-23*/
         {
             ESP_LOGE(TAG, "Erro ao enviar ACK: errno=%d", errno);
             fclose(temp_file);

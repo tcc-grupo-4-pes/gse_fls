@@ -7,12 +7,12 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 
-#define KEYS_MOUNT_POINT "/keys"
+#define KEYS_MOUNT_POINT "/keys" /* BC-LLR-50  */
 #define BC_KEY_SIZE 32
 #define GSE_KEY_SIZE 32
 
-#define BC_KEY_FILE "/keys/bc_key.bin"
-#define GSE_KEY_FILE "/keys/gse_key.bin"
+#define BC_KEY_FILE "/keys/bc_key.bin"/* BC-LLR-50  */
+#define GSE_KEY_FILE "/keys/gse_key.bin"/* BC-LLR-50  */
 
 // Estrutura para armazenar chaves na memória
 typedef struct

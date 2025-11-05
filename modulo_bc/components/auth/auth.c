@@ -177,7 +177,7 @@ esp_err_t auth_perform_handshake(int sock, struct sockaddr_in *client_addr, auth
 
     
         /* BC-LLR-18*/
-        if (ntohs(packet.opcode) != OP_DATA)
+        if (ntohs(packet.opcode) != OP_DATA)/*BC-LLR-89*/
         {
             ESP_LOGW(TAG, "Pacote recebido não é DATA (opcode=%d), ignorando", ntohs(packet.opcode));
             continue;
@@ -186,6 +186,9 @@ esp_err_t auth_perform_handshake(int sock, struct sockaddr_in *client_addr, auth
         /* BC-LLR-91 */
         if (memcmp(packet.data.data, keys->gse_verify_key, GSE_KEY_SIZE) != 0)
         {
+            /*BC-LLR-19 - Erro de autenticação de aplicação Embraer
+            No estado MAINT_WAIT caso a chave de autenticação seja diferente da chave embarcada, 
+            o software deve ir para o estado de ERROR e parar a execução da tarefa*/
             ESP_LOGE(TAG, "Chave GSE inválida - autenticação falhou");
             return ESP_FAIL;
         }
@@ -197,10 +200,10 @@ esp_err_t auth_perform_handshake(int sock, struct sockaddr_in *client_addr, auth
     /*BC-LLR-28 - Envio do ACK no TFTP
     Conforme TFTP, o software do B/C deve enviar um ACK a cada pacote recebido */
     tftp_packet_t ack;
-    ack.opcode = htons(OP_ACK); /* BC-LLR-91 */
+    ack.opcode = htons(OP_ACK); /* BC-LLR-90 */
     ack.block = packet.data.block;
 
-    if (sendto(sock, &ack, 4, 0, (struct sockaddr *)client_addr, addr_len) < 0)
+    if (sendto(sock, &ack, 4, 0, (struct sockaddr *)client_addr, addr_len) < 0)/* BC-LLR-28 */
     {
         /* BC-LLR-92 - Erro no envio do ACK
         Em caso de erro no envio do ACK, o software deve ir para estado ERROR e parar execução*/
@@ -215,7 +218,7 @@ esp_err_t auth_perform_handshake(int sock, struct sockaddr_in *client_addr, auth
     ESP_LOGI(TAG, "Enviando chave do BC...");
 
     tftp_packet_t bc_key_packet;
-    bc_key_packet.opcode = htons(OP_DATA);/* BC-LLR-91 */
+    bc_key_packet.opcode = htons(OP_DATA);/* BC-LLR-90 */
     bc_key_packet.data.block = htons(1);
     memcpy(bc_key_packet.data.data, keys->bc_auth_key, BC_KEY_SIZE);
 

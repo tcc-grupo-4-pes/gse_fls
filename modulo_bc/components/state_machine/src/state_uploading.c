@@ -42,7 +42,7 @@ static fsm_state_t state_uploading_run(void)
 
     // Envia ACK para o hash recebido
     tftp_packet_t hash_ack;
-    hash_ack.opcode = htons(OP_ACK);
+    hash_ack.opcode = htons(OP_ACK);/*BC-LLR-90*/
     hash_ack.block = req.data.block; // Mantém o mesmo número do bloco recebido
     
     /* BC-LLR-64 Erro ao enviar ACK do hash esperado
@@ -50,7 +50,7 @@ static fsm_state_t state_uploading_run(void)
        o software deve ir para o estado ERROR e parar a execução
     */
     if (sendto(sock, &hash_ack, 4, 0,
-               (struct sockaddr *)&client_addr, addr_len) < 0)
+               (struct sockaddr *)&client_addr, addr_len) < 0)/*BC-LLR-28*/
     {
         ESP_LOGE(TAG, "Erro ao enviar ACK do hash: errno=%d", errno);
         return ST_ERROR;
@@ -64,7 +64,7 @@ static fsm_state_t state_uploading_run(void)
     */
     client_addr = original_client_addr;
     ESP_LOGI(TAG, "Endereço do cliente restaurado para IP=%s, porta=%d",
-             inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port));
+             inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port)); 
 
     /* BC-LLR-41 Transição para estado VERIFY
        No estado UPLOADING, após receber o pacote contendo o SHA256 esperado, 
