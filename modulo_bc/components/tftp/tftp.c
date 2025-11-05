@@ -315,26 +315,48 @@ void make_rrq(int sock, struct sockaddr_in *client_addr, const char *filename, u
 {
     ESP_LOGI(TAG, "Iniciando RRQ para %s", filename);
 
+    /* BC-LLR-36 Armazenamento dos pacotes recebidos
+       No estado UPLOADING, ao receber os pacotes do firmware, 
+       o software deve salvar os dados em um caminho temporário dentro da partição firmware
+    */
     FILE *temp_file = open_temp_file();
+    
+    /* BC-LLR-59 Erro ao abrir partição
+       No estado UPLOADING, caso haja algum erro ao abrir a partição para escrita dos dados 
+       recebidos de maneira temporária, o software deve ir para o estado de ERROR e parar a execução da tarefa
+    */
     if (!temp_file)
     {
         ESP_LOGE(TAG, "Failed to open temporary file for write");
         return;
     }
 
-    // Envia RRQ do socket principal (porta 69)
+    /* BC-LLR-94 Envio de Read Request (RRQ)
+       No estado UPLOADING, o software deve enviar uma requisição TFTP RRQ para o GSE 
+       solicitando o arquivo de firmware especificado no LUR
+    */
     tftp_packet_t rrq;
     rrq.opcode = htons(OP_RRQ);
     snprintf(rrq.request, sizeof(rrq.request), "%s%coctet%c", filename, 0, 0);
 
+
     if (sendto(sock, &rrq, strlen(filename) + 8, 0,
                (struct sockaddr *)client_addr, sizeof(*client_addr)) < 0)
-    {
+    {   
+        /* BC-LLR-95 Erro no envio do RRQ
+        No estado UPLOADING, caso haja erro ao enviar o RRQ, 
+        o software deve fechar o arquivo temporário e parar a execução
+        */
         ESP_LOGE(TAG, "Erro ao enviar RRQ: errno=%d", errno);
         fclose(temp_file);
         return;
     }
 
+    /* BC-LLR-37 Cálculo contínuo do SHA256
+       No estado UPLOADING, ao receber os pacotes do firmware, 
+       o software deve inicializar o cálculo do SHA256 usando mbedtls e 
+       atualizar o cálculo do SHA256 continuamente
+    */
     mbedtls_sha256_context sha_ctx;
     mbedtls_sha256_init(&sha_ctx);
     mbedtls_sha256_starts(&sha_ctx, 0);
@@ -351,6 +373,12 @@ void make_rrq(int sock, struct sockaddr_in *client_addr, const char *filename, u
 
         ssize_t n = recvfrom(sock, &data_pkt, sizeof(data_pkt), 0,
                              (struct sockaddr *)&data_addr, &addr_len);
+        
+        /* BC-LLR-96 Erro ao receber pacote de dados do firmware
+           No estado UPLOADING, caso haja erro ao receber um pacote de dados via TFTP, 
+           o software deve fechar o arquivo temporário, parar o cálculo do SHA256, 
+           e ir para o estado ERROR
+        */
         if (n < 0)
         {
             ESP_LOGE(TAG, "Erro ao receber dados: errno=%d", errno);
@@ -359,7 +387,10 @@ void make_rrq(int sock, struct sockaddr_in *client_addr, const char *filename, u
             return;
         }
 
-        // Primeiro pacote DATA vem da porta efêmera do servidor
+        /* BC-LLR-97 Detecção do TID efêmero
+           No estado UPLOADING, ao receber o primeiro pacote DATA, o software deve identificar 
+           e salvar o TID (porta efêmera) do servidor GSE para envio dos ACKs subsequentes
+        */
         if (first_packet)
         {
             server_tid_addr = data_addr;
@@ -367,6 +398,11 @@ void make_rrq(int sock, struct sockaddr_in *client_addr, const char *filename, u
             first_packet = 0;
         }
 
+        /* BC-LLR-61 Erro: Não é pacote de dados durante recebimento do firmware
+           No estado UPLOADING, ao receber os pacotes do firmware, 
+           caso seja recebido um pacote TFTP que não tenha OP code de DATA, 
+           o software deve desconsiderar o pacote e esperar um novo pacote
+        */
         if (ntohs(data_pkt.opcode) != OP_DATA)
         {
             ESP_LOGW(TAG, "Pacote inesperado recebido (opcode=%d)", ntohs(data_pkt.opcode));
@@ -376,9 +412,19 @@ void make_rrq(int sock, struct sockaddr_in *client_addr, const char *filename, u
         int data_len = n - 4;
         ESP_LOGI(TAG, "Bloco %d recebido (%d bytes)", ntohs(data_pkt.data.block), data_len);
 
-        // Verifica se há espaço disponível na partição antes de escrever o bloco
+        /* BC-LLR-38 Verificação de tamanho
+           No estado UPLOADING, no loop de recebimento dos pacotes do firmware, 
+           o software do B/C deve fazer uma verificação se há espaço na partição firmware 
+           para escrita do pacote
+        */
         size_t total = 0, used = 0;
         esp_err_t ret = esp_spiffs_info("firmware", &total, &used);
+        
+        /* BC-LLR-98 Erro ao obter informações da partição
+           No estado UPLOADING, caso haja erro ao obter informações de espaço da partição, 
+           o software deve fechar o arquivo temporário, parar o cálculo do SHA256, 
+           e ir para o estado ST_ERROR
+        */
         if (ret != ESP_OK)
         {
             ESP_LOGE(TAG, "Falha ao obter informações da partição: %s", esp_err_to_name(ret));
@@ -388,6 +434,12 @@ void make_rrq(int sock, struct sockaddr_in *client_addr, const char *filename, u
         }
 
         size_t available = total - used;
+        
+        /* BC-LLR-60 Erro de espaço insuficiente
+           No estado UPLOADING, caso não haja espaço na partição para escrita do pacote 
+           recebido de firmware, o software deve fechar o arquivo temporário, 
+           parar o cálculo contínuo do SHA256, ir para estado ERROR e parar execução da tarefa
+        */
         if (available < (size_t)data_len)
         {
             ESP_LOGE(TAG, "Espaço insuficiente na partição! Necessário=%d, Disponível=%u",
@@ -397,14 +449,27 @@ void make_rrq(int sock, struct sockaddr_in *client_addr, const char *filename, u
             return;
         }
 
+        /* BC-LLR-36 Armazenamento dos pacotes recebidos
+           Escreve os dados recebidos no arquivo temporário
+        */
+
         if (fwrite(data_pkt.data.data, 1, data_len, temp_file) != (size_t)data_len)
-        {
+        {   
+            /* BC-LLR-99 Erro na escrita do arquivo temporário
+            No estado UPLOADING, caso haja erro ao escrever dados no arquivo temporário, 
+            o software deve fechar o arquivo, parar o cálculo do SHA256, e ir para o estado ERROR
+            */
             ESP_LOGE(TAG, "Failed to write to temp file: %s", TEMP_FILE_PATH);
             fclose(temp_file);
             mbedtls_sha256_free(&sha_ctx);
             return;
         }
 
+        /* BC-LLR-37 Cálculo contínuo do SHA256   
+        No estado UPLOADING, ao receber os pacotes do firmware, 
+        o software deve inicializar o cálculo do SHA256 usando mbedtls 
+        e atualizar o cálculo do SHA256 continuamente
+        */
         mbedtls_sha256_update(&sha_ctx, data_pkt.data.data, data_len);
         total_bytes += data_len;
 
@@ -413,6 +478,11 @@ void make_rrq(int sock, struct sockaddr_in *client_addr, const char *filename, u
         ack.opcode = htons(OP_ACK);
         ack.block = data_pkt.data.block;
 
+        /* BC-LLR-62 Erro no envio do ACK
+           No estado UPLOADING, caso haja erro ao enviar o ACK referente ao pacote de firmware recebido, 
+           o software deve fechar o arquivo temporário, parar o cálculo contínuo do SHA256, 
+           ir para o estado ERROR e parar a execução
+        */
         if (sendto(sock, &ack, 4, 0,
                    (struct sockaddr *)&server_tid_addr, sizeof(server_tid_addr)) < 0)
         {
@@ -422,10 +492,18 @@ void make_rrq(int sock, struct sockaddr_in *client_addr, const char *filename, u
             return;
         }
 
+        /* BC-LLR-39 Último pacote de dados do firmware
+           No estado UPLOADING, o software irá parar de receber os pacotes do firmware 
+           quando for detectado um pacote de dados menor que 512 bytes
+        */
         if (data_len < BLOCK_SIZE)
             break;
     }
 
+    /* BC-LLR-100 Validação de recebimento de firmware nulo
+       No estado UPLOADING, caso nenhum byte de firmware seja recebido, 
+       o software deve fechar o arquivo temporário, parar o cálculo do SHA256, e retornar erro
+    */
     if (total_bytes == 0)
     {
         ESP_LOGW(TAG, "Nenhum dado recebido em make_rrq para %s", filename);
@@ -434,6 +512,11 @@ void make_rrq(int sock, struct sockaddr_in *client_addr, const char *filename, u
         return;
     }
 
+    /* BC-LLR-37 Cálculo contínuo do SHA256
+       No estado UPLOADING, ao receber os pacotes do firmware, 
+       o software deve inicializar o cálculo do SHA256 usando mbedtls 
+       e atualizar o cálculo do SHA256 continuamente
+    */
     mbedtls_sha256_finish(&sha_ctx, hash);
     mbedtls_sha256_free(&sha_ctx);
 
