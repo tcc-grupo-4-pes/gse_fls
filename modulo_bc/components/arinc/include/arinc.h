@@ -4,7 +4,10 @@
 #include <stdint.h>
 #include <stddef.h>
 
-// ARINC operation status codes
+/*BC-LLR-25
+O software do módulo B/C deve usar os códigos de status definidos no
+Protocolo ARINC615A(conforme tabela do slide 38 do treinamento)
+*/
 typedef enum
 {
     ARINC_STATUS_OP_ACCEPTED_NOT_STARTED = 0x0001, /**< Operação aceita, mas ainda não iniciada.  */
@@ -16,7 +19,11 @@ typedef enum
     ARINC_STATUS_OP_CANCELLED_BY_USER = 0x1005,    /**< Operação cancelada pelo operador.  */
 } arinc_op_status_code_t;                          // De acordo com tabela slide 38 arinc
 
-// LUI data structure - ARINC 615A Load Upload Information
+/* BC-LLR-26
+O arquivo .LUI deve conter campos para comprimento do .LUI (32 bits), versão do protocolo (16 bits - "A4"), 
+Status de aceitação da operação (16bits), uma string de descrição do status(até 256 bytes) e o 
+tamanho da string de descrição(8 bits)
+*/
 typedef struct
 {
     uint32_t file_length;     // 32 bits - Total length of LUI file
@@ -25,7 +32,14 @@ typedef struct
     uint8_t desc_length;      // 8 bits - Length of description
     char description[256];    // Variable string - Status description
 } __attribute__((packed)) lui_data_t;
-// LUS data structure - ARINC 615A Load Upload Status
+
+/*BC-LLR-31
+O arquivo .LUS deve conter campos para comprimento do .LUS (32 bits),
+versão do protocolo (16 bits - "A4"), Status de aceitação da operação (16bits), 
+uma string de descrição do status(até 256 bytes) e o tamanho da string de descrição(8 bits), 
+contador(16 bits), exception timer e expection time(16 bits cada), 
+Razão(%) da lista de Load(24 bits - 3 ASCII)
+*/
 typedef struct
 {
     uint32_t file_length;     // 32 bits - Total length of LUS file
@@ -39,7 +53,13 @@ typedef struct
     char load_list_ratio[3];  // 3 ASCII chars - Progress "000" to "100"
 } __attribute__((packed)) lus_data_t;
 
-// LUR
+/* BC-LLR-33
+O arquivo .LUR recebido do GSE deve ser preenchido com os seguintes campos: 
+comprimento do .LUR(32 bits), versão de protocolo(16bits - "A4"), número de arquivos a serem 
+recebidos(16bits - no caso apenas 1), comprimento da string do nome do arquivo a ser carregado(8 bits), 
+string do nome do arquivo a ser carregado(até 256 bytes), tamanho da string com PN (8 bits), 
+string com PN(até 256 bytes) 
+*/
 typedef struct
 {
     uint32_t file_length;       // 32 bits - Total length of LUR file

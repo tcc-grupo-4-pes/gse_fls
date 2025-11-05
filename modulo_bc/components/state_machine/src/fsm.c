@@ -83,6 +83,10 @@ static void bc_task(void *pvParameters)
             next = ops->run();
         }
 
+        /* BC-LLR-22 
+        Caso haja mais de 2 tentativas de carregamento do firmware mal sucedidas por conta
+        de pacotes não reconhecidos ou requisições erradas, o software deve ir para o estado 
+        de ERROR e parar a execução da tarefa*/
         if(upload_failure_count > MAX_UPLOAD_FAILURES)
         {
             ESP_LOGE(TAG, "Número máximo de falhas de upload excedido (%d) - transicionando para ST_ERROR", upload_failure_count);

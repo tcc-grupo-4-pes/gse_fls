@@ -21,7 +21,7 @@ static fsm_state_t state_init_run(void)
     (C) Escrever chaves estática de autenticação;
     */
     /* (A) Inicializar NVS */
-    esp_err_t ret = nvs_flash_init();
+    nvs_flash_init();
 
     /* (B) Inicializar SPIFFs*/
     esp_err_t spiffs_ret_firmware = mount_spiffs("firmware", FIRMWARE_MOUNT_POINT);

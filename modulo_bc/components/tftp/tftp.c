@@ -1,5 +1,5 @@
 #include "tftp.h"
-#include "storage.h" // open_temp_file, FIRMWARE_MOUNT_POINT
+#include "storage.h"           // open_temp_file, FIRMWARE_MOUNT_POINT
 #include "state_machine/fsm.h" // upload_failure_count
 
 #include <stdio.h>  // FILE operations
@@ -20,109 +20,99 @@ void handle_rrq(int sock, struct sockaddr_in *client, char *filename)
 {
     ESP_LOGI(TAG, "Read Request(GSE requisita): %s", filename);
 
+    /* BC-LLR-21 Erro no Read Request da inicialização de upload(LUI)
+    No estado MAINT_WAIT após autenticação do GSE como aplicação Embraer,
+    caso a requisição não for de leitura de um arquivo .LUI,
+     o software deve desconsiderar e esperar novo pacote*/
     if (strstr(filename, ".LUI") == NULL)
     {
         ESP_LOGW(TAG, "Arquivo requisitado não e .LUI");
         return;
     }
 
-    // Cria socket efêmero para transferência (protocolo TFTP padrão)
+    /* BC-LLR-23 */
     int transfer_sock = socket(AF_INET, SOCK_DGRAM, 0);
-    if (transfer_sock < 0)
-    {
-        ESP_LOGE(TAG, "Erro ao criar socket de transferência: errno=%d", errno);
-        return;
-    }
-
-    // Bind em porta efêmera (porta 0 = sistema escolhe)
     struct sockaddr_in transfer_addr;
     memset(&transfer_addr, 0, sizeof(transfer_addr));
     transfer_addr.sin_family = AF_INET;
     transfer_addr.sin_port = htons(0); // Porta efêmera
     transfer_addr.sin_addr.s_addr = htonl(INADDR_ANY);
-
     if (bind(transfer_sock, (struct sockaddr *)&transfer_addr, sizeof(transfer_addr)) < 0)
     {
         ESP_LOGE(TAG, "Erro no bind do socket de transferência: errno=%d", errno);
         close(transfer_sock);
         return;
     }
-
-    // Obtém a porta efêmera atribuída
     socklen_t addr_len = sizeof(transfer_addr);
     getsockname(transfer_sock, (struct sockaddr *)&transfer_addr, &addr_len);
     ESP_LOGI(TAG, "Socket de transferência criado na porta %d (TID)", ntohs(transfer_addr.sin_port));
 
+    /* BC-LLR-24 Criação do arquivo .LUI
+    No estado MAINT_WAIT, após receber a requisição de leitura do arquivo de inicialização deve criar
+    e enviar por um buffer o Load Upload Initialization(LUI) aceitando a operação caso não haja nenhum
+    problema    */
     lui_data_t lui;
     if (init_lui(&lui, ARINC_STATUS_OP_ACCEPTED_NOT_STARTED, "Operation Accepted") != 0)
     {
+        /*BC-LLR-52 Erro ao criar o .LUI
+        No estado MAINT_WAIT, caso haja algum erro ao criar o arquivo .LUI,
+        o software deve ir para o estado de ERROR e parar a execução
+        */
         ESP_LOGE(TAG, "Falha ao inicializar LUI");
         close(transfer_sock);
         return;
     }
 
-    size_t total_size = sizeof(lui_data_t);
-    uint8_t *lui_buf = (uint8_t *)&lui; // Usa ponteiro direto para a estrutura no stack
+    /* BC-LLR-24 */
+    size_t lui_size = sizeof(lui_data_t);
 
-    int sent = 0;
-    uint16_t block = 1;
-    int retry_count = 0;
+    tftp_packet_t pkt;
+    /* BC-LLR-90 Conversão do OPCODE - Envio
+    Ao enviar um pacote via TFTP, o software do B/C deve converter o OPCODE do formato
+    host (little-endian do ESP32) para o de rede (big-endian)
+    */
+    pkt.opcode = htons(OP_DATA);
+    pkt.data.block = htons(1);
+    memcpy(pkt.data.data, &lui, lui_size);
 
-    while (sent < total_size)
+    /* BC-LLR-23 */
+    if (sendto(transfer_sock, &pkt, 4 + lui_size, 0,
+               (struct sockaddr *)client, sizeof(*client)) < 0)
     {
-        tftp_packet_t pkt;
-        pkt.opcode = htons(OP_DATA);
-        pkt.data.block = htons(block);
-
-        int chunk = (total_size - sent) < BLOCK_SIZE ? (total_size - sent) : BLOCK_SIZE;
-        memcpy(pkt.data.data, (uint8_t *)lui_buf + sent, chunk);
-
-        // Envia do socket efêmero para o cliente
-        ssize_t s = sendto(transfer_sock, &pkt, 4 + chunk, 0,
-                           (struct sockaddr *)client, sizeof(*client));
-        if (s < 0)
-        {
-            ESP_LOGW(TAG, "Falha ao enviar bloco %d, tentando novamente", block);
-            retry_count++;
-            upload_failure_count++;
-
-            if (retry_count >= TFTP_RETRY_LIMIT)
-            {
-                ESP_LOGE(TAG, "Limite de tentativas atingido para bloco %d", block);
-                break;
-            }
-            vTaskDelay(pdMS_TO_TICKS(TFTP_TIMEOUT_SEC * 1000));
-            continue;
-        }
-        ESP_LOGI(TAG, "Enviado bloco %d (%d bytes)", block, chunk);
-        retry_count = 0;
-
-        struct timeval tv;
-        tv.tv_sec = TFTP_TIMEOUT_SEC;
-        tv.tv_usec = 0;
-        setsockopt(transfer_sock, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
-
-        tftp_packet_t ack;
-        struct sockaddr_in ack_addr;
-        socklen_t ack_len = sizeof(ack_addr);
-
-        ssize_t n = recvfrom(transfer_sock, &ack, sizeof(ack), 0,
-                             (struct sockaddr *)&ack_addr, &ack_len);
-
-        if (n > 0 && ntohs(ack.opcode) == OP_ACK && ntohs(ack.block) == block)
-        {
-            ESP_LOGI(TAG, "ACK recebido para bloco %d", block);
-            sent += chunk;
-            block++;
-        }
-        else
-        {
-            ESP_LOGW(TAG, "ACK nao recebido ou invalido, reenviando bloco %d...", block);
-        }
-
-        if (chunk < BLOCK_SIZE)
-            break;
+        /* BC-LLR-53 Erro ao enviar o .LUI
+        No estado MAINT_WAIT, caso haja algum erro ao enviar o arquivo .LUI para responder a
+        requisição de leitura, o software deve ir para o estado de ERROR e parar a execução */
+        ESP_LOGE(TAG, "Erro ao enviar LUI: errno=%d", errno);
+        close(transfer_sock);
+        return;
     }
+    ESP_LOGI(TAG, "LUI enviado: bloco 1 (%u bytes)", (unsigned)lui_size);
+
+    /*BC-LLR-27 Espera do ACK no TFTP
+    Conforme TFTP, o software do B/C deve esperar um ACK de cada pacote
+    enviado antes de enviar um novo pacote*/
+    struct timeval tv;
+    tv.tv_sec = TFTP_TIMEOUT_SEC; /* BC-LLR-16 */
+    tv.tv_usec = 0;
+    setsockopt(transfer_sock, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+
+    tftp_packet_t ack;
+    struct sockaddr_in ack_addr;
+    socklen_t ack_len = sizeof(ack_addr);
+
+    /*BC-LLR-27*/
+    ssize_t n = recvfrom(transfer_sock, &ack, sizeof(ack), 0,
+                         (struct sockaddr *)&ack_addr, &ack_len);
+
+    /* BC-LLR-89 , BC-LLR-53*/
+    if (n < 0 || ntohs(ack.opcode) != OP_ACK || ntohs(ack.block) != 1)
+    {
+        ESP_LOGE(TAG, "ACK não recebido ou inválido para bloco 1");
+        close(transfer_sock);
+        return;
+    }
+
+    ESP_LOGI(TAG, "ACK recebido para bloco 1 - LUI enviado com sucesso");
 
     close(transfer_sock);
     ESP_LOGI(TAG, "RRQ concluido, socket de transferência fechado");

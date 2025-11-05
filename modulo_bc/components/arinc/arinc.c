@@ -9,23 +9,24 @@ static const char *TAG = "arinc";
 
 int init_lui(lui_data_t *lui, arinc_op_status_code_t status_code, const char *description)
 {
+    /* BC-LLR-52 */
     if (!lui || !description)
     {
         ESP_LOGE(TAG, "Invalid parameters for LUI initialization");
         return -1;
     }
-
-    // Zero out the structure
+    /* BC-LLR-24 */
+    // Zerar estrutura
     memset(lui, 0, sizeof(lui_data_t));
 
-    // Set fixed values
+    // Set valores fixos
     lui->file_length = htonl(sizeof(lui_data_t));
     memcpy(lui->protocol_version, "A4", 2);
 
-    // Set status code (convert to network byte order)
+    // Set código de status (converter para ordem de bytes de rede)
     lui->status_code = htons(status_code);
 
-    // Set description and its length
+    // Set descrição e seu tamanho
     size_t desc_len = strlen(description);
     if (desc_len > sizeof(lui->description) - 1)
     {
