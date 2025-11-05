@@ -18,6 +18,9 @@ static fsm_state_t state_verify_run(void)
     */
     if (memcmp(req.data.data, hash, 32) != 0)
     {
+        /* BC-LLR-65 - Erro de integridade - SHA256 diferente
+        No estado VERIFY, caso o SHA256 calculado não seja igual ao recebido do GSE, 
+        o software deve ir para o estado ERROR e parar a execução da tarefa*/
         ESP_LOGE(TAG, "Hash SHA-256 não confere! Arquivo corrompido.");
         return ST_ERROR;
     }

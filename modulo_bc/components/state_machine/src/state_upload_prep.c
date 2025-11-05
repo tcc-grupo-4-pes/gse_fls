@@ -17,7 +17,7 @@ static fsm_state_t state_upload_prep_run(void)
     if (init_lus(&lus_data, ARINC_STATUS_OP_ACCEPTED_NOT_STARTED,
                  "Operation Accepted", 0, "000") != 0)
     {   
-        /* BC-LLR - 54 Erro ao criar o INIT_LOAD.LUS
+        /* BC-LLR-54 Erro ao criar o INIT_LOAD.LUS
         No estado UPLOAD_PREP, caso haja algum erro ao criar o arquivo .LUS, 
         o software deve ir para o estado de ERROR e parar a execução */
         ESP_LOGE(TAG, "Falha ao inicializar LUS inicial");
