@@ -334,3 +334,4 @@ compile_commands.json
 /modulo_bc/sdkconfig.old%
 .vscode
 gse/docs/
+gse/logs/
