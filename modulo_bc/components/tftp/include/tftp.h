@@ -10,9 +10,10 @@
 
 // TFTP constants
 #define TFTP_PORT 69
-#define BLOCK_SIZE 512
+#define BLOCK_SIZE 512 /*BC-LLR-17*/
 #define TFTP_RETRY_LIMIT 1
-#define TFTP_TIMEOUT_SEC 2
+#define TFTP_TIMEOUT_SEC 2 /*BC-LLR-16*/
+
 
 // TFTP opcodes
 #define OP_RRQ 1
@@ -21,7 +22,7 @@
 #define OP_ACK 4
 #define OP_ERROR 5
 
-// TFTP packet (packed to match on-wire layout)
+// TFTP pacote
 typedef struct
 {
     uint16_t opcode;

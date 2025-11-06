@@ -26,10 +26,9 @@ const char *SUPPORTED_PNS[SUPPORTED_PNS_COUNT] = {
     "EMB-SW-007-137-046",
     "EMB-SW-007-137-047"};
 
-/**
- * @brief Verifica se um Part Number é suportado
- * @param pn Part Number a verificar
- * @return true se suportado, false caso contrário
+/* BC-LLR-34 - Verificação do PN
+ Em UPLOAD_PREP, o software do B/C deve verificar se o PN recebido pelo arquivo .LUR está presente na lista local de PNs suportados pelo módulo B/C 
+ antes de iniciar o download do arquivo, se nao estiver, deve registrar e interromper execução
  */
 bool is_pn_supported(const char *pn)
 {
@@ -83,6 +82,10 @@ static void bc_task(void *pvParameters)
             next = ops->run();
         }
 
+        /* BC-LLR-22 
+        Caso haja mais de 2 tentativas de carregamento do firmware mal sucedidas por conta
+        de pacotes não reconhecidos ou requisições erradas, o software deve ir para o estado 
+        de ERROR e parar a execução da tarefa*/
         if(upload_failure_count > MAX_UPLOAD_FAILURES)
         {
             ESP_LOGE(TAG, "Número máximo de falhas de upload excedido (%d) - transicionando para ST_ERROR", upload_failure_count);

@@ -1,5 +1,5 @@
 #include "tftp.h"
-#include "storage.h" // open_temp_file, FIRMWARE_MOUNT_POINT
+#include "storage.h"           // open_temp_file, FIRMWARE_MOUNT_POINT
 #include "state_machine/fsm.h" // upload_failure_count
 
 #include <stdio.h>  // FILE operations
@@ -20,109 +20,99 @@ void handle_rrq(int sock, struct sockaddr_in *client, char *filename)
 {
     ESP_LOGI(TAG, "Read Request(GSE requisita): %s", filename);
 
+    /* BC-LLR-21 Erro no Read Request da inicialização de upload(LUI)
+    No estado MAINT_WAIT após autenticação do GSE como aplicação Embraer,
+    caso a requisição não for de leitura de um arquivo .LUI,
+     o software deve desconsiderar e esperar novo pacote*/
     if (strstr(filename, ".LUI") == NULL)
     {
         ESP_LOGW(TAG, "Arquivo requisitado não e .LUI");
         return;
     }
 
-    // Cria socket efêmero para transferência (protocolo TFTP padrão)
+    /* BC-LLR-23 */
     int transfer_sock = socket(AF_INET, SOCK_DGRAM, 0);
-    if (transfer_sock < 0)
-    {
-        ESP_LOGE(TAG, "Erro ao criar socket de transferência: errno=%d", errno);
-        return;
-    }
-
-    // Bind em porta efêmera (porta 0 = sistema escolhe)
     struct sockaddr_in transfer_addr;
     memset(&transfer_addr, 0, sizeof(transfer_addr));
     transfer_addr.sin_family = AF_INET;
     transfer_addr.sin_port = htons(0); // Porta efêmera
     transfer_addr.sin_addr.s_addr = htonl(INADDR_ANY);
-
     if (bind(transfer_sock, (struct sockaddr *)&transfer_addr, sizeof(transfer_addr)) < 0)
     {
         ESP_LOGE(TAG, "Erro no bind do socket de transferência: errno=%d", errno);
         close(transfer_sock);
         return;
     }
-
-    // Obtém a porta efêmera atribuída
     socklen_t addr_len = sizeof(transfer_addr);
     getsockname(transfer_sock, (struct sockaddr *)&transfer_addr, &addr_len);
-    ESP_LOGI(TAG, "Socket de transferência criado na porta %d (TID)", ntohs(transfer_addr.sin_port));
+    ESP_LOGI(TAG, "Socket de transferência criado na porta %d (TID)", ntohs(transfer_addr.sin_port)); /*BC-LLR-89*/
 
+    /* BC-LLR-24 Criação do arquivo .LUI
+    No estado MAINT_WAIT, após receber a requisição de leitura do arquivo de inicialização deve criar
+    e enviar por um buffer o Load Upload Initialization(LUI) aceitando a operação caso não haja nenhum
+    problema    */
     lui_data_t lui;
     if (init_lui(&lui, ARINC_STATUS_OP_ACCEPTED_NOT_STARTED, "Operation Accepted") != 0)
     {
+        /*BC-LLR-52 Erro ao criar o .LUI
+        No estado MAINT_WAIT, caso haja algum erro ao criar o arquivo .LUI,
+        o software deve ir para o estado de ERROR e parar a execução
+        */
         ESP_LOGE(TAG, "Falha ao inicializar LUI");
         close(transfer_sock);
         return;
     }
 
-    size_t total_size = sizeof(lui_data_t);
-    uint8_t *lui_buf = (uint8_t *)&lui; // Usa ponteiro direto para a estrutura no stack
+    /* BC-LLR-24 */
+    size_t lui_size = sizeof(lui_data_t);
 
-    int sent = 0;
-    uint16_t block = 1;
-    int retry_count = 0;
+    tftp_packet_t pkt;
+    /* BC-LLR-90 Conversão do OPCODE - Envio
+    Ao enviar um pacote via TFTP, o software do B/C deve converter o OPCODE do formato
+    host (little-endian do ESP32) para o de rede (big-endian)
+    */
+    pkt.opcode = htons(OP_DATA);
+    pkt.data.block = htons(1);
+    memcpy(pkt.data.data, &lui, lui_size);
 
-    while (sent < total_size)
+    /* BC-LLR-23 */
+    if (sendto(transfer_sock, &pkt, 4 + lui_size, 0,
+               (struct sockaddr *)client, sizeof(*client)) < 0)
     {
-        tftp_packet_t pkt;
-        pkt.opcode = htons(OP_DATA);
-        pkt.data.block = htons(block);
-
-        int chunk = (total_size - sent) < BLOCK_SIZE ? (total_size - sent) : BLOCK_SIZE;
-        memcpy(pkt.data.data, (uint8_t *)lui_buf + sent, chunk);
-
-        // Envia do socket efêmero para o cliente
-        ssize_t s = sendto(transfer_sock, &pkt, 4 + chunk, 0,
-                           (struct sockaddr *)client, sizeof(*client));
-        if (s < 0)
-        {
-            ESP_LOGW(TAG, "Falha ao enviar bloco %d, tentando novamente", block);
-            retry_count++;
-            upload_failure_count++;
-
-            if (retry_count >= TFTP_RETRY_LIMIT)
-            {
-                ESP_LOGE(TAG, "Limite de tentativas atingido para bloco %d", block);
-                break;
-            }
-            vTaskDelay(pdMS_TO_TICKS(TFTP_TIMEOUT_SEC * 1000));
-            continue;
-        }
-        ESP_LOGI(TAG, "Enviado bloco %d (%d bytes)", block, chunk);
-        retry_count = 0;
-
-        struct timeval tv;
-        tv.tv_sec = TFTP_TIMEOUT_SEC;
-        tv.tv_usec = 0;
-        setsockopt(transfer_sock, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
-
-        tftp_packet_t ack;
-        struct sockaddr_in ack_addr;
-        socklen_t ack_len = sizeof(ack_addr);
-
-        ssize_t n = recvfrom(transfer_sock, &ack, sizeof(ack), 0,
-                             (struct sockaddr *)&ack_addr, &ack_len);
-
-        if (n > 0 && ntohs(ack.opcode) == OP_ACK && ntohs(ack.block) == block)
-        {
-            ESP_LOGI(TAG, "ACK recebido para bloco %d", block);
-            sent += chunk;
-            block++;
-        }
-        else
-        {
-            ESP_LOGW(TAG, "ACK nao recebido ou invalido, reenviando bloco %d...", block);
-        }
-
-        if (chunk < BLOCK_SIZE)
-            break;
+        /* BC-LLR-53 Erro ao enviar o .LUI
+        No estado MAINT_WAIT, caso haja algum erro ao enviar o arquivo .LUI para responder a
+        requisição de leitura, o software deve ir para o estado de ERROR e parar a execução */
+        ESP_LOGE(TAG, "Erro ao enviar LUI: errno=%d", errno);
+        close(transfer_sock);
+        return;
     }
+    ESP_LOGI(TAG, "LUI enviado: bloco 1 (%u bytes)", (unsigned)lui_size);
+
+    /*BC-LLR-27 Espera do ACK no TFTP
+    Conforme TFTP, o software do B/C deve esperar um ACK de cada pacote
+    enviado antes de enviar um novo pacote*/
+    struct timeval tv;
+    tv.tv_sec = TFTP_TIMEOUT_SEC; /* BC-LLR-16 */
+    tv.tv_usec = 0;
+    setsockopt(transfer_sock, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+
+    tftp_packet_t ack;
+    struct sockaddr_in ack_addr;
+    socklen_t ack_len = sizeof(ack_addr);
+
+    /*BC-LLR-27*/
+    ssize_t n = recvfrom(transfer_sock, &ack, sizeof(ack), 0,
+                         (struct sockaddr *)&ack_addr, &ack_len);
+
+    /* BC-LLR-89 , BC-LLR-53*/
+    if (n < 0 || ntohs(ack.opcode) != OP_ACK || ntohs(ack.block) != 1)
+    {
+        ESP_LOGE(TAG, "ACK não recebido ou inválido para bloco 1");
+        close(transfer_sock);
+        return;
+    }
+
+    ESP_LOGI(TAG, "ACK recebido para bloco 1 - LUI enviado com sucesso");
 
     close(transfer_sock);
     ESP_LOGI(TAG, "RRQ concluido, socket de transferência fechado");
@@ -138,7 +128,7 @@ void handle_wrq(int sock, struct sockaddr_in *client, char *filename, lur_data_t
         return;
     }
 
-    // Cria socket efêmero para transferência (protocolo TFTP padrão)
+    /* BC-LLR 23 Porta Efêmera para transferência */
     int transfer_sock = socket(AF_INET, SOCK_DGRAM, 0);
     if (transfer_sock < 0)
     {
@@ -146,7 +136,7 @@ void handle_wrq(int sock, struct sockaddr_in *client, char *filename, lur_data_t
         return;
     }
 
-    // Bind em porta efêmera
+    /* BC-LLR-23*/
     struct sockaddr_in transfer_addr;
     memset(&transfer_addr, 0, sizeof(transfer_addr));
     transfer_addr.sin_family = AF_INET;
@@ -155,19 +145,20 @@ void handle_wrq(int sock, struct sockaddr_in *client, char *filename, lur_data_t
 
     if (bind(transfer_sock, (struct sockaddr *)&transfer_addr, sizeof(transfer_addr)) < 0)
     {
+        /* BC-LLR-51 Erro no bind do socket de transferência */
         ESP_LOGE(TAG, "Erro no bind do socket de transferência: errno=%d", errno);
         close(transfer_sock);
         return;
     }
 
-    // Obtém a porta efêmera atribuída
+    /* BC-LLR-23 */
     socklen_t addr_len = sizeof(transfer_addr);
     getsockname(transfer_sock, (struct sockaddr *)&transfer_addr, &addr_len);
-    ESP_LOGI(TAG, "Socket de transferência criado na porta %d (TID)", ntohs(transfer_addr.sin_port));
+    ESP_LOGI(TAG, "Socket de transferência criado na porta %d (TID)", ntohs(transfer_addr.sin_port)); /*BC-LLR-89*/
 
     // Envia ACK(0) do socket efêmero para o cliente
     tftp_packet_t ack;
-    ack.opcode = htons(OP_ACK);
+    ack.opcode = htons(OP_ACK);/*BC-LLR-90*/
     ack.block = htons(0);
     sendto(transfer_sock, &ack, 4, 0, (struct sockaddr *)client, sizeof(*client));
 
@@ -187,15 +178,16 @@ void handle_wrq(int sock, struct sockaddr_in *client, char *filename, lur_data_t
     while (1)
     {
         ssize_t n = recvfrom(transfer_sock, &pkt, sizeof(pkt), 0,
-                             (struct sockaddr *)&recv_addr, &recv_len);
+                             (struct sockaddr *)&recv_addr, &recv_len); /*BC-LLR-27*/
         if (n < 0)
         {
             ESP_LOGW(TAG, "Timeout ou erro no recebimento (errno=%d)", errno);
             break;
         }
 
-        if (ntohs(pkt.opcode) != OP_DATA || ntohs(pkt.data.block) != expected_block)
+        if (ntohs(pkt.opcode) != OP_DATA || ntohs(pkt.data.block) != expected_block)/*BC-LLR-89*/
         {
+            /* BC-LLR-18*/
             ESP_LOGW(TAG, "Pacote inesperado (opcode=%d, block=%d)",
                      ntohs(pkt.opcode), ntohs(pkt.data.block));
             upload_failure_count++;
@@ -209,15 +201,15 @@ void handle_wrq(int sock, struct sockaddr_in *client, char *filename, lur_data_t
             total_received += data_len;
         }
 
-        ack.opcode = htons(OP_ACK);
+        ack.opcode = htons(OP_ACK); /*BC-LLR-90*/
         ack.block = htons(expected_block);
-        sendto(transfer_sock, &ack, 4, 0, (struct sockaddr *)client, sizeof(*client));
+        sendto(transfer_sock, &ack, 4, 0, (struct sockaddr *)client, sizeof(*client)); /*BC-LLR-28*/
 
         ESP_LOGI(TAG, "Bloco %d recebido (%d bytes)", expected_block, data_len);
         expected_block++;
 
         if (data_len < BLOCK_SIZE)
-            break; // Ultimo bloco
+            break; // Último bloco
     }
 
     if (total_received == 0)
@@ -227,9 +219,13 @@ void handle_wrq(int sock, struct sockaddr_in *client, char *filename, lur_data_t
         return;
     }
 
-    // parse LUR using arinc helper
     if (parse_lur(lur_buf, total_received, lur_file) != 0)
-    {
+    {   
+        /* BC-LLR-57 Erro no parse do arquivo .LUR 
+        No estado UPLOAD_PREP, após armazenar em um buffer o arquivo .LUR, 
+        caso haja algum erro ao parsear o arquivo para obter as informações de PN e nome do arquivo,
+         o software deve ir para o estado ERROR e parar a execução
+        */
         ESP_LOGE(TAG, "Falha ao parsear LUR");
         close(transfer_sock);
         return;
@@ -245,22 +241,26 @@ void handle_wrq(int sock, struct sockaddr_in *client, char *filename, lur_data_t
     ESP_LOGI(TAG, "WRQ concluido, socket de transferência fechado");
 }
 
+/* BC-LLR-30 */
 void make_wrq(int sock, struct sockaddr_in *client_addr, const char *lus_filename, const lus_data_t *lus_data)
 {
     ESP_LOGI(TAG, "Iniciando WRQ para envio de %s", lus_filename);
-
-    // Envia WRQ do socket principal (porta 69)
+ 
     tftp_packet_t wrq;
-    wrq.opcode = htons(OP_WRQ);
+    wrq.opcode = htons(OP_WRQ); /*BC-LLR-90*/
     snprintf(wrq.request, sizeof(wrq.request), "%s%coctet%c", lus_filename, 0, 0);
 
     if (sendto(sock, &wrq, strlen(lus_filename) + 8, 0,
                (struct sockaddr *)client_addr, sizeof(*client_addr)) < 0)
     {
+        /*BC-LLR-69 - Erro ao enviar o FINAL.LUS
+        No estado TEARDOWN, caso haja algum erro ao fazer a requisição de escrita e envio do arquivo FINAL.LUS, 
+        o software deve escrever log de erro e cancelar o envio*/
         ESP_LOGE(TAG, "Erro ao enviar WRQ: errno=%d", errno);
         return;
     }
 
+    /* BC-LLR-23 */
     // Aguarda ACK(0) que virá da porta efêmera do cliente
     tftp_packet_t ack;
     struct sockaddr_in ack_addr;
@@ -273,21 +273,25 @@ void make_wrq(int sock, struct sockaddr_in *client_addr, const char *lus_filenam
         return;
     }
 
-    if (ntohs(ack.opcode) != OP_ACK || ntohs(ack.block) != 0)
+    if (ntohs(ack.opcode) != OP_ACK || ntohs(ack.block) != 0) /*BC-LLR-89*/
     {
         ESP_LOGE(TAG, "ACK inicial invalido");
         return;
     }
 
+    /* BC-LLR-23 */
     // Cliente mudou para porta efêmera, salva o novo endereço
     ESP_LOGI(TAG, "Cliente mudou para TID (porta) %d", ntohs(ack_addr.sin_port));
 
-    // Envia dados para a porta efêmera do cliente
+    //BBC-LLR-16
     tftp_packet_t data_pkt;
-    data_pkt.opcode = htons(OP_DATA);
+    data_pkt.opcode = htons(OP_DATA); /*BC-LLR-90*/
     data_pkt.data.block = htons(1);
     memcpy(data_pkt.data.data, lus_data, sizeof(lus_data_t));
 
+    /*  BC-LLR-51 Erro no socket - UPLOAD_PREP
+    No estado UPLOAD_PREP, caso haja algum erro ao criar ou dar o bind no socket de transferência 
+    (criado com porta efêmera), o software deve ir para o estado de ERROR e parar a execução*/
     if (sendto(sock, &data_pkt, 4 + sizeof(lus_data_t), 0,
                (struct sockaddr *)&ack_addr, sizeof(ack_addr)) < 0)
     {
@@ -296,13 +300,13 @@ void make_wrq(int sock, struct sockaddr_in *client_addr, const char *lus_filenam
     }
 
     if (recvfrom(sock, &ack, sizeof(ack), 0,
-                 (struct sockaddr *)&ack_addr, &ack_len) < 0)
+                 (struct sockaddr *)&ack_addr, &ack_len) < 0) /*BC-LLR-27*/
     {
         ESP_LOGE(TAG, "Erro ao receber ACK final: errno=%d", errno);
         return;
     }
 
-    if (ntohs(ack.opcode) != OP_ACK || ntohs(ack.block) != 1)
+    if (ntohs(ack.opcode) != OP_ACK || ntohs(ack.block) != 1) /*BC-LLR-89*/
     {
         ESP_LOGE(TAG, "ACK final invalido");
         return;
@@ -315,32 +319,54 @@ void make_rrq(int sock, struct sockaddr_in *client_addr, const char *filename, u
 {
     ESP_LOGI(TAG, "Iniciando RRQ para %s", filename);
 
+    /* BC-LLR-36 Armazenamento dos pacotes recebidos
+       No estado UPLOADING, ao receber os pacotes do firmware, 
+       o software deve salvar os dados em um caminho temporário dentro da partição firmware
+    */
     FILE *temp_file = open_temp_file();
+    
+    /* BC-LLR-59 Erro ao abrir partição
+       No estado UPLOADING, caso haja algum erro ao abrir a partição para escrita dos dados 
+       recebidos de maneira temporária, o software deve ir para o estado de ERROR e parar a execução da tarefa
+    */
     if (!temp_file)
     {
         ESP_LOGE(TAG, "Failed to open temporary file for write");
         return;
     }
 
-    // Envia RRQ do socket principal (porta 69)
+    /* BC-LLR-94 Envio de Read Request (RRQ)
+       No estado UPLOADING, o software deve enviar uma requisição TFTP RRQ para o GSE 
+       solicitando o arquivo de firmware especificado no LUR
+    */
     tftp_packet_t rrq;
-    rrq.opcode = htons(OP_RRQ);
+    rrq.opcode = htons(OP_RRQ);  /*BC-LLR-90*/
     snprintf(rrq.request, sizeof(rrq.request), "%s%coctet%c", filename, 0, 0);
+
 
     if (sendto(sock, &rrq, strlen(filename) + 8, 0,
                (struct sockaddr *)client_addr, sizeof(*client_addr)) < 0)
-    {
+    {   
+        /* BC-LLR-95 Erro no envio do RRQ
+        No estado UPLOADING, caso haja erro ao enviar o RRQ, 
+        o software deve fechar o arquivo temporário e parar a execução
+        */
         ESP_LOGE(TAG, "Erro ao enviar RRQ: errno=%d", errno);
         fclose(temp_file);
         return;
     }
 
+    /* BC-LLR-37 Cálculo contínuo do SHA256
+       No estado UPLOADING, ao receber os pacotes do firmware, 
+       o software deve inicializar o cálculo do SHA256 usando mbedtls e 
+       atualizar o cálculo do SHA256 continuamente
+    */
     mbedtls_sha256_context sha_ctx;
     mbedtls_sha256_init(&sha_ctx);
     mbedtls_sha256_starts(&sha_ctx, 0);
 
     size_t total_bytes = 0;
-    struct sockaddr_in server_tid_addr; // Porta efêmera do servidor (GSE)
+    struct sockaddr_in server_tid_addr; // Porta efêmera do servidor (GSE) BC-LLR-23
     int first_packet = 1;
 
     while (1)
@@ -351,6 +377,12 @@ void make_rrq(int sock, struct sockaddr_in *client_addr, const char *filename, u
 
         ssize_t n = recvfrom(sock, &data_pkt, sizeof(data_pkt), 0,
                              (struct sockaddr *)&data_addr, &addr_len);
+        
+        /* BC-LLR-96 Erro ao receber pacote de dados do firmware
+           No estado UPLOADING, caso haja erro ao receber um pacote de dados via TFTP, 
+           o software deve fechar o arquivo temporário, parar o cálculo do SHA256, 
+           e ir para o estado ERROR
+        */
         if (n < 0)
         {
             ESP_LOGE(TAG, "Erro ao receber dados: errno=%d", errno);
@@ -359,16 +391,25 @@ void make_rrq(int sock, struct sockaddr_in *client_addr, const char *filename, u
             return;
         }
 
-        // Primeiro pacote DATA vem da porta efêmera do servidor
+        /* BC-LLR-97 Detecção do TID efêmero
+           No estado UPLOADING, ao receber o primeiro pacote DATA, o software deve identificar 
+           e salvar o TID (porta efêmera) do servidor GSE para envio dos ACKs subsequentes
+        */
         if (first_packet)
         {
             server_tid_addr = data_addr;
-            ESP_LOGI(TAG, "Servidor GSE usando TID (porta) %d", ntohs(server_tid_addr.sin_port));
+            ESP_LOGI(TAG, "Servidor GSE usando TID (porta) %d", ntohs(server_tid_addr.sin_port)); /*BC-LLR-89*/
             first_packet = 0;
         }
 
-        if (ntohs(data_pkt.opcode) != OP_DATA)
+        /* BC-LLR-61 Erro: Não é pacote de dados durante recebimento do firmware
+           No estado UPLOADING, ao receber os pacotes do firmware, 
+           caso seja recebido um pacote TFTP que não tenha OP code de DATA, 
+           o software deve desconsiderar o pacote e esperar um novo pacote
+        */
+        if (ntohs(data_pkt.opcode) != OP_DATA) /*BC-LLR-89*/
         {
+            /*BC-LLR-18*/
             ESP_LOGW(TAG, "Pacote inesperado recebido (opcode=%d)", ntohs(data_pkt.opcode));
             continue;
         }
@@ -376,9 +417,19 @@ void make_rrq(int sock, struct sockaddr_in *client_addr, const char *filename, u
         int data_len = n - 4;
         ESP_LOGI(TAG, "Bloco %d recebido (%d bytes)", ntohs(data_pkt.data.block), data_len);
 
-        // Verifica se há espaço disponível na partição antes de escrever o bloco
+        /* BC-LLR-38 Verificação de tamanho
+           No estado UPLOADING, no loop de recebimento dos pacotes do firmware, 
+           o software do B/C deve fazer uma verificação se há espaço na partição firmware 
+           para escrita do pacote
+        */
         size_t total = 0, used = 0;
         esp_err_t ret = esp_spiffs_info("firmware", &total, &used);
+        
+        /* BC-LLR-98 Erro ao obter informações da partição
+           No estado UPLOADING, caso haja erro ao obter informações de espaço da partição, 
+           o software deve fechar o arquivo temporário, parar o cálculo do SHA256, 
+           e ir para o estado ST_ERROR
+        */
         if (ret != ESP_OK)
         {
             ESP_LOGE(TAG, "Falha ao obter informações da partição: %s", esp_err_to_name(ret));
@@ -388,6 +439,12 @@ void make_rrq(int sock, struct sockaddr_in *client_addr, const char *filename, u
         }
 
         size_t available = total - used;
+        
+        /* BC-LLR-60 Erro de espaço insuficiente
+           No estado UPLOADING, caso não haja espaço na partição para escrita do pacote 
+           recebido de firmware, o software deve fechar o arquivo temporário, 
+           parar o cálculo contínuo do SHA256, ir para estado ERROR e parar execução da tarefa
+        */
         if (available < (size_t)data_len)
         {
             ESP_LOGE(TAG, "Espaço insuficiente na partição! Necessário=%d, Disponível=%u",
@@ -397,14 +454,27 @@ void make_rrq(int sock, struct sockaddr_in *client_addr, const char *filename, u
             return;
         }
 
+        /* BC-LLR-36 Armazenamento dos pacotes recebidos
+           Escreve os dados recebidos no arquivo temporário
+        */
+
         if (fwrite(data_pkt.data.data, 1, data_len, temp_file) != (size_t)data_len)
-        {
+        {   
+            /* BC-LLR-99 Erro na escrita do arquivo temporário
+            No estado UPLOADING, caso haja erro ao escrever dados no arquivo temporário, 
+            o software deve fechar o arquivo, parar o cálculo do SHA256, e ir para o estado ERROR
+            */
             ESP_LOGE(TAG, "Failed to write to temp file: %s", TEMP_FILE_PATH);
             fclose(temp_file);
             mbedtls_sha256_free(&sha_ctx);
             return;
         }
 
+        /* BC-LLR-37 Cálculo contínuo do SHA256   
+        No estado UPLOADING, ao receber os pacotes do firmware, 
+        o software deve inicializar o cálculo do SHA256 usando mbedtls 
+        e atualizar o cálculo do SHA256 continuamente
+        */
         mbedtls_sha256_update(&sha_ctx, data_pkt.data.data, data_len);
         total_bytes += data_len;
 
@@ -413,8 +483,13 @@ void make_rrq(int sock, struct sockaddr_in *client_addr, const char *filename, u
         ack.opcode = htons(OP_ACK);
         ack.block = data_pkt.data.block;
 
+        /* BC-LLR-62 Erro no envio do ACK
+           No estado UPLOADING, caso haja erro ao enviar o ACK referente ao pacote de firmware recebido, 
+           o software deve fechar o arquivo temporário, parar o cálculo contínuo do SHA256, 
+           ir para o estado ERROR e parar a execução
+        */
         if (sendto(sock, &ack, 4, 0,
-                   (struct sockaddr *)&server_tid_addr, sizeof(server_tid_addr)) < 0)
+                   (struct sockaddr *)&server_tid_addr, sizeof(server_tid_addr)) < 0) /*BC-LLR-28, BC-LLR-23*/
         {
             ESP_LOGE(TAG, "Erro ao enviar ACK: errno=%d", errno);
             fclose(temp_file);
@@ -422,10 +497,18 @@ void make_rrq(int sock, struct sockaddr_in *client_addr, const char *filename, u
             return;
         }
 
+        /* BC-LLR-39 Último pacote de dados do firmware
+           No estado UPLOADING, o software irá parar de receber os pacotes do firmware 
+           quando for detectado um pacote de dados menor que 512 bytes
+        */
         if (data_len < BLOCK_SIZE)
             break;
     }
 
+    /* BC-LLR-100 Validação de recebimento de firmware nulo
+       No estado UPLOADING, caso nenhum byte de firmware seja recebido, 
+       o software deve fechar o arquivo temporário, parar o cálculo do SHA256, e retornar erro
+    */
     if (total_bytes == 0)
     {
         ESP_LOGW(TAG, "Nenhum dado recebido em make_rrq para %s", filename);
@@ -434,6 +517,11 @@ void make_rrq(int sock, struct sockaddr_in *client_addr, const char *filename, u
         return;
     }
 
+    /* BC-LLR-37 Cálculo contínuo do SHA256
+       No estado UPLOADING, ao receber os pacotes do firmware, 
+       o software deve inicializar o cálculo do SHA256 usando mbedtls 
+       e atualizar o cálculo do SHA256 continuamente
+    */
     mbedtls_sha256_finish(&sha_ctx, hash);
     mbedtls_sha256_free(&sha_ctx);
 

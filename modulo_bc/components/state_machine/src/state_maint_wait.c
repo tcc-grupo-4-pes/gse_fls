@@ -57,7 +57,7 @@ static void state_maint_wait_enter(void)
         */
         memset(&server_addr, 0, sizeof(server_addr));    /* zera todos os bits da estrutura */
         server_addr.sin_family = AF_INET;                /* Família de endereços IPv4 */
-        server_addr.sin_port = htons(TFTP_PORT);         /* Porta do servidor TFTP - htons converte de host byte order para network byte order */
+        server_addr.sin_port = htons(TFTP_PORT);         /* BC-LLR-90 Porta 69 do TFTP - htons converte de host byte order para network byte order */
         server_addr.sin_addr.s_addr = htonl(INADDR_ANY); /* Endereço IP do servidor - htonl converte de host byte order para network byte order,
             INADDR_ANY significa que o servidor irá escutar em todas as interfaces de rede disponíveis */
 
@@ -131,10 +131,7 @@ static fsm_state_t state_maint_wait_run(void)
         return ST_ERROR;
     }
 
-    /* recvfrom()
-        Aguarda receber um pacote UDP e armazena:
-        Dados do pacote em req
-        Endereço do remetente em client_addr*/
+    
     n = recvfrom(sock, &req, sizeof(req), 0,
                  (struct sockaddr *)&client_addr, &addr_len);
 
@@ -166,20 +163,33 @@ static fsm_state_t state_maint_wait_run(void)
         return ST_MAINT_WAIT;
     }
 
-    /* parse da estrutura recebida via tftp */
-    opcode = ntohs(req.opcode); /* extrai e converte o opcode,
-                                       Converte número de 16 bits do formato rede (big-endian)
-                                       para formato host (little-endian do ESP32).*/
+    /* BC-LLR-89 Conversão do OPCODE - Recebimento
+    Ao receber um pacote via TFTP, o software do B/C deve converter o OPCODE do 
+    formato rede (big-endian) para formato host (little-endian do ESP32).
+    */
+    opcode = ntohs(req.opcode); 
 
+    /* BC-LLR-12 - Habilitação da interface de carregamento 
+    O software do B/C, no estado MAINT_WAIT após autenticação de aplicação Embraer, deve esperar
+    a requisição de leitura(Read Request - RRQ) do arquivo Load Upload Initialization(LUI) para
+    iniciar a sequência de recebimento do novo firmware(ir para o estado UPLOAD_PREP).
+    */
     if (opcode == OP_RRQ)
     {
         filename = req.request;
-        // CORREÇÃO: Garantir terminação de string
         filename[n - 2] = '\0';
 
-        // Salva endereço original do cliente antes de handle_rrq pois é criado um TID efêmero
+        /* BC-LLR-23 Porta Efêmera para transferência
+        O software do módulo B/C deve se comunicar através de uma porta efêmera para transferir 
+        dados conforme descrito no TFTP 
+        */
         struct sockaddr_in original_client_addr = client_addr;
 
+        /* BC-LLR-24 Criação do arquivo .LUI
+        No estado MAINT_WAIT, após receber a requisição de leitura do arquivo de inicialização deve criar
+        e enviar por um buffer o Load Upload Initialization(LUI) aceitando a operação caso não haja nenhum
+        problema
+        */
         handle_rrq(sock, &client_addr, filename);
 
         // Restaura endereço original do cliente para make_wrq
@@ -187,6 +197,9 @@ static fsm_state_t state_maint_wait_run(void)
 
         return ST_UPLOAD_PREP; // Transição para o Read request primeiro
     }
+    /* BC-LLR-18 Opcode desconhecido TFTP
+    Caso o OPCODE do pacote recebido via TFTP não seja reconhecido(RRQ,WRQ,DATA,ACK,ERROR),
+    o software deve desconsiderar e esperar novo pacote */
     else
     {
         ESP_LOGW(TAG, "Opcode desconhecido recebido: %d", opcode);

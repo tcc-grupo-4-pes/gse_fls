@@ -34,12 +34,6 @@ esp_err_t mount_spiffs(const char *partition_label, const char *mount_point)
 FILE *open_temp_file(void)
 {
     FILE *temp_file = fopen(TEMP_FILE_PATH, "wb");
-    if (!temp_file)
-    {
-        ESP_LOGE(TAG, "Failed to open temporary file for write: %s", TEMP_FILE_PATH);
-        return NULL;
-    }
-
     ESP_LOGI(TAG, "Opened temporary file: %s", TEMP_FILE_PATH);
     return temp_file;
 }

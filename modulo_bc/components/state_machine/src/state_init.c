@@ -21,7 +21,7 @@ static fsm_state_t state_init_run(void)
     (C) Escrever chaves estática de autenticação;
     */
     /* (A) Inicializar NVS */
-    esp_err_t ret = nvs_flash_init();
+    nvs_flash_init();
 
     /* (B) Inicializar SPIFFs*/
     esp_err_t spiffs_ret_firmware = mount_spiffs("firmware", FIRMWARE_MOUNT_POINT);
@@ -45,7 +45,9 @@ static fsm_state_t state_init_run(void)
 
     ESP_LOGI(TAG, "Partições SPIFFS montadas com sucesso");
 
-    /* (C) Escrever chaves estáticas de autenticação */
+    /* BC-LLR-50 - Partição com chaves de autenticação
+    A partição keys deve conter as chaves pré-compartilhadas para verificação de autenticidade do GSE bem como
+    as chaves enviadas ao GSE para autenticar o BC como aplicação Embraer*/
     if (auth_write_static_keys() != ESP_OK)
     {
         ESP_LOGE(TAG, "Falha ao escrever chaves de autenticação");

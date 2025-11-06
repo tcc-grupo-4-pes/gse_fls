@@ -9,6 +9,11 @@
 #define TEMP_FILE_PATH "/firmware/temp.bin"
 #define FINAL_FILE_PATH "/firmware/final.bin"
 
+/* BC-LLR-49 - Tabela de partições
+O módulo B/C deve usar a tabela de partição para flash de 4 MB com: bootloader + partition table (32 KB), 
+nvs (24 KB), phy_init (4 KB), factory (1 MB), keys (64 KB, SPIFFS) e firmware (~2,86 MB, SPIFFS)
+*/
+
 esp_err_t mount_spiffs(const char *partition_label, const char *mount_point);
 
 FILE *open_temp_file(void);

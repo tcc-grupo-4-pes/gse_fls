@@ -9,23 +9,24 @@ static const char *TAG = "arinc";
 
 int init_lui(lui_data_t *lui, arinc_op_status_code_t status_code, const char *description)
 {
+    /* BC-LLR-52 */
     if (!lui || !description)
     {
         ESP_LOGE(TAG, "Invalid parameters for LUI initialization");
         return -1;
     }
-
-    // Zero out the structure
+    /* BC-LLR-24 */
+    // Zerar estrutura
     memset(lui, 0, sizeof(lui_data_t));
 
-    // Set fixed values
+    // Set valores fixos
     lui->file_length = htonl(sizeof(lui_data_t));
     memcpy(lui->protocol_version, "A4", 2);
 
-    // Set status code (convert to network byte order)
-    lui->status_code = htons(status_code);
+    // Set código de status (converter para ordem de bytes de rede)
+    lui->status_code = htons(status_code); /*BC-LLR-90*/
 
-    // Set description and its length
+    // Set descrição e seu tamanho
     size_t desc_len = strlen(description);
     if (desc_len > sizeof(lui->description) - 1)
     {
@@ -64,7 +65,7 @@ int init_lus(lus_data_t *lus, arinc_op_status_code_t status_code,
     memcpy(lus->protocol_version, "A4", 2);
 
     // Set status code (convert to network byte order)
-    lus->status_code = htons(status_code);
+    lus->status_code = htons(status_code); /*BC-LLR-90*/
 
     // Set description and its length
     size_t desc_len = strlen(description);
@@ -77,7 +78,7 @@ int init_lus(lus_data_t *lus, arinc_op_status_code_t status_code,
     lus->description[desc_len] = '\0';
 
     // Set counter (convert to network byte order)
-    lus->counter = htons(counter);
+    lus->counter = htons(counter); /*BC-LLR-90*/
 
     // Set timers to 0 (already done by memset)
     lus->exception_timer = 0;
@@ -92,6 +93,15 @@ int init_lus(lus_data_t *lus, arinc_op_status_code_t status_code,
     return 0;
 }
 
+/* BC-LLR-33  Campos do .LUR 
+O arquivo .LUR recebido do GSE deve ser preenchido com os seguintes campos: 
+comprimento do .LUR(32 bits), versão de protocolo(16bits - "A4"), 
+número de arquivos a serem recebidos(16bits - no caso apenas 1), 
+comprimento da string do nome do arquivo a ser carregado(8 bits), 
+string do nome do arquivo a ser carregado(até 256 bytes), 
+tamanho da string com PN (8 bits), string com PN(até 256 bytes) 
+
+*/
 int parse_lur(const uint8_t *buf, size_t len, lur_data_t *out)
 {
     if (!buf || !out || len < 8)
@@ -121,11 +131,10 @@ int parse_lur(const uint8_t *buf, size_t len, lur_data_t *out)
     // num_header_files (2)
     if (remaining < 2)
         return -1;
-    uint16_t num_headers = ntohs(*(uint16_t *)p);
+    uint16_t num_headers = ntohs(*(uint16_t *)p); /*BC-LLR-89*/
     p += 2;
     remaining -= 2;
 
-    // We'll only parse the first header file and load part number
     if (num_headers == 0)
     {
         ESP_LOGW(TAG, "parse_lur: num_headers == 0");
@@ -169,7 +178,7 @@ int parse_lur(const uint8_t *buf, size_t len, lur_data_t *out)
     // Fill remaining fixed fields in network byte order
     out->file_length = htonl(file_length);
     memcpy(out->protocol_version, proto, 2);
-    out->num_header_files = htons(num_headers);
+    out->num_header_files = htons(num_headers); /*BC-LLR-90*/
 
     ESP_LOGI(TAG, "parse_lur: parsed header='%s' part='%s'", out->header_filename, out->load_part_number);
     return 0;

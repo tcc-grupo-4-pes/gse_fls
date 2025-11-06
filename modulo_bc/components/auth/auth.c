@@ -146,15 +146,13 @@ void auth_clear_keys(auth_keys_t *keys)
 
 esp_err_t auth_perform_handshake(int sock, struct sockaddr_in *client_addr, auth_keys_t *keys)
 {
-    if (!keys)
-    {
-        ESP_LOGE(TAG, "Chaves não carregadas");
-        return ESP_ERR_INVALID_ARG;
-    }
-
+    /* BC-LLR-10 - Autenticação de Aplicação Embraer - GSE
+    O software do B/C, no estado MAINT_WAIT após abertura do socket, deve receber uma chave 
+    de autenticação do GSE e compara com a chave de autenticação embarcada para autenticar GSE 
+    como aplicação Embraer
+    */
     socklen_t addr_len = sizeof(*client_addr);
     tftp_packet_t packet;
-
 
     while (1)
     {
@@ -163,10 +161,14 @@ esp_err_t auth_perform_handshake(int sock, struct sockaddr_in *client_addr, auth
 
         if (recv_len < 0)
         {
+            /*BC-LLR-85*/
             if (errno == EAGAIN || errno == EWOULDBLOCK)
             {
                 return ESP_ERR_TIMEOUT;
             }
+            /*BC-LLR-91 - Falha na autenticação do GSE
+            Caso haja erro ao receber e validar chave de autenticação do GSE, o software deve ir 
+            para o estado ERROR e parar execução pois aplicação GSE não autenticada*/
             ESP_LOGE(TAG, "Erro ao receber chave do GSE: errno=%d", errno);
             return ESP_FAIL;
         }
@@ -174,24 +176,19 @@ esp_err_t auth_perform_handshake(int sock, struct sockaddr_in *client_addr, auth
         ESP_LOGI(TAG, "Iniciando handshake de autenticação");
 
     
-        // Verifica se é um pacote DATA com a chave GSE
-        if (ntohs(packet.opcode) != OP_DATA)
+        /* BC-LLR-18*/
+        if (ntohs(packet.opcode) != OP_DATA)/*BC-LLR-89*/
         {
             ESP_LOGW(TAG, "Pacote recebido não é DATA (opcode=%d), ignorando", ntohs(packet.opcode));
             continue;
         }
 
-        // Verifica tamanho da chave
-        int data_len = recv_len - 4;
-        if (data_len != GSE_KEY_SIZE)
-        {
-            ESP_LOGW(TAG, "Tamanho da chave GSE inválido (%d bytes, esperado %d)", data_len, GSE_KEY_SIZE);
-            continue;
-        }
-
-        // Verifica se a chave recebida coincide com a esperada
+        /* BC-LLR-91 */
         if (memcmp(packet.data.data, keys->gse_verify_key, GSE_KEY_SIZE) != 0)
         {
+            /*BC-LLR-19 - Erro de autenticação de aplicação Embraer
+            No estado MAINT_WAIT caso a chave de autenticação seja diferente da chave embarcada, 
+            o software deve ir para o estado de ERROR e parar a execução da tarefa*/
             ESP_LOGE(TAG, "Chave GSE inválida - autenticação falhou");
             return ESP_FAIL;
         }
@@ -200,48 +197,64 @@ esp_err_t auth_perform_handshake(int sock, struct sockaddr_in *client_addr, auth
         break;
     }
 
-    // Envia ACK para a chave recebida
+    /*BC-LLR-28 - Envio do ACK no TFTP
+    Conforme TFTP, o software do B/C deve enviar um ACK a cada pacote recebido */
     tftp_packet_t ack;
-    ack.opcode = htons(OP_ACK);
+    ack.opcode = htons(OP_ACK); /* BC-LLR-90 */
     ack.block = packet.data.block;
 
-    if (sendto(sock, &ack, 4, 0, (struct sockaddr *)client_addr, addr_len) < 0)
+    if (sendto(sock, &ack, 4, 0, (struct sockaddr *)client_addr, addr_len) < 0)/* BC-LLR-28 */
     {
+        /* BC-LLR-92 - Erro no envio do ACK
+        Em caso de erro no envio do ACK, o software deve ir para estado ERROR e parar execução*/
         ESP_LOGE(TAG, "Erro ao enviar ACK para chave GSE: errno=%d", errno);
         return ESP_FAIL;
     }
 
-    // Passo 2: Envia chave do BC para GSE
+
+    /*BC-LLR-11 - Autenticação de Aplicação Embraer - B/C
+    O software do B/C, no estado MAINT_WAIT após validação da chave do GSE, deve enviar outra 
+    chave atestando aplicação Embraer para o GSE completando o handshake de autenticação*/
     ESP_LOGI(TAG, "Enviando chave do BC...");
 
     tftp_packet_t bc_key_packet;
-    bc_key_packet.opcode = htons(OP_DATA);
+    bc_key_packet.opcode = htons(OP_DATA);/* BC-LLR-90 */
     bc_key_packet.data.block = htons(1);
     memcpy(bc_key_packet.data.data, keys->bc_auth_key, BC_KEY_SIZE);
 
     if (sendto(sock, &bc_key_packet, 4 + BC_KEY_SIZE, 0,
                (struct sockaddr *)client_addr, addr_len) < 0)
     {
+        /* BC-LLR-93 - Falha na autenticação do B/C
+        Caso haja erro ao enviar chave de autenticação do B/C,
+        o software deve ir para o estado ERROR e parar execução
+        */
         ESP_LOGE(TAG, "Erro ao enviar chave BC: errno=%d", errno);
         return ESP_FAIL;
     }
 
-    // Passo 3: Aguarda ACK do GSE para nossa chave
-    ESP_LOGI(TAG, "Aguardando confirmação da chave BC...");
 
+    ESP_LOGI(TAG, "Aguardando confirmação da chave BC...");
+    /* BC-LLR-27 */
     ssize_t recv_len = recvfrom(sock, &packet, sizeof(packet), 0,
                                 (struct sockaddr *)client_addr, &addr_len);
 
     if (recv_len < 0)
     {
+        /*BC-LLR-85 */
         if (errno == EAGAIN || errno == EWOULDBLOCK)
         {
             return ESP_ERR_TIMEOUT;
         }
+        /*BC-LLR-93 
+        Caso haja erro ao enviar chave de autenticação do B/C,
+        o software deve ir para o estado ERROR e parar execução
+        */
         ESP_LOGE(TAG, "Erro ao receber ACK da chave BC: errno=%d", errno);
         return ESP_FAIL;
     }
 
+    /* BC-LLR-89 , BC-LLR-93 */
     if (ntohs(packet.opcode) != OP_ACK || ntohs(packet.data.block) != 1)
     {
         ESP_LOGE(TAG, "GSE não confirmou chave BC (opcode=%d, block=%d)",
@@ -252,6 +265,7 @@ esp_err_t auth_perform_handshake(int sock, struct sockaddr_in *client_addr, auth
     ESP_LOGI(TAG, "Handshake de autenticação concluído com sucesso");
     authenticated = true;
     return ESP_OK;
+
 }
 
 bool auth_is_authenticated(void)
