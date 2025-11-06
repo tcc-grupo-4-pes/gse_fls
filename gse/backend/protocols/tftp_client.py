@@ -24,32 +24,32 @@ from typing import Tuple, Callable, Optional
 # ============================================================================
 # REQ: GSE-LLR-87: Constante de Porta TFTP
 # Descrição: A constante de porta TFTP (TFTP_PORT) deve ser definida como 69.
-# Autor: Fabrício Carneiro Travassos
-# Revisor: Julia
+# Autor: Julia
+# Revisor: Fabrício
 # ============================================================================
 TFTP_PORT = 69
 
 # ============================================================================
 # REQ: GSE-LLR-88: Constante de Tamanho de Bloco
 # Descrição: A constante de tamanho de bloco (BLOCK_SIZE) deve ser 512 bytes (padrão RFC 1350).
-# Autor: Fabrício Carneiro Travassos
-# Revisor: Julia
+# Autor: Julia
+# Revisor: Fabrício
 # ============================================================================
 BLOCK_SIZE = 512
 
 # ============================================================================
 # REQ: GSE-LLR-89: Constante de Timeout
 # Descrição: A constante de timeout (TIMEOUT_SEC) deve possuir valor ≥ 10s para acomodar operações lentas de flash.
-# Autor: Fabrício Carneiro Travassos
-# Revisor: Julia
+# Autor: Julia
+# Revisor: Fabrício
 # ============================================================================
 TIMEOUT_SEC = 10
 
 # ============================================================================
 # REQ: GSE-LLR-90: Constante de Retentativas
 # Descrição: A constante de retentativas (MAX_RETRIES) deve ser definida com valor ≥ 1.
-# Autor: Fabrício Carneiro Travassos
-# Revisor: Julia
+# Autor: Julia
+# Revisor: Fabrício
 # ============================================================================
 MAX_RETRIES = 1
 
@@ -81,28 +81,28 @@ class TFTPClient:
     # ============================================================================
     # REQ: GSE-LLR-91: Interface de Inicialização (Parâmetros)
     # Descrição: O construtor deve aceitar server_ip (str), server_port (int), timeout (int) e logger (Callable[[str], None]).
-    # Autor: Fabrício Carneiro Travassos
-    # Revisor: Julia
+    # Autor: Julia
+    # Revisor: Fabrício
     # ============================================================================
     # REQ: GSE-LLR-92: Interface de Inicialização (Valores Padrão)
     # Descrição: O construtor deve empregar TFTP_PORT (GSE-LLR-087) e TIMEOUT_SEC (GSE-LLR-089) como padrões para server_port e timeout.
-    # Autor: Fabrício Carneiro Travassos
-    # Revisor: Julia
+    # Autor: Julia
+    # Revisor: Fabrício
     # ============================================================================
     # REQ: GSE-LLR-93: Interface de Inicialização (Armazenamento)
     # Descrição: Os parâmetros de entrada devem ser armazenados em atributos da instância.
-    # Autor: Fabrício Carneiro Travassos
-    # Revisor: Julia
+    # Autor: Julia
+    # Revisor: Fabrício
     # ============================================================================
     # REQ: GSE-LLR-94: Interface de Inicialização (Logger Padrão)
     # Descrição: Na ausência de logger, deve ser utilizado um logger padrão (ex.: print).
-    # Autor: Fabrício Carneiro Travassos
-    # Revisor: Julia
+    # Autor: Julia
+    # Revisor: Fabrício
     # ============================================================================
     # REQ: GSE-LLR-95: Provisão para Métricas de Transporte
     # Descrição: A interface deve prever pontos para futura coleta de métricas (bytes, retries, tempos), mesmo que não implementados.
-    # Autor: Fabrício Carneiro Travassos
-    # Revisor: Julia
+    # Autor: Julia
+    # Revisor: Fabrício
     # ============================================================================
     def __init__(
         self,
@@ -125,8 +125,8 @@ class TFTPClient:
     # ============================================================================
     # REQ: GSE-LLR-96: Interface de Conexão UDP
     # Descrição: A interface connect() deve criar socket UDP (AF_INET, SOCK_DGRAM), aplicar settimeout(self.timeout), registrar sucesso/erro e retornar True/False conforme resultado.
-    # Autor: Fabrício Carneiro Travassos
-    # Revisor: Julia
+    # Autor: Julia
+    # Revisor: Fabrício
     # ============================================================================
     def connect(self) -> bool:
         try:
@@ -141,8 +141,8 @@ class TFTPClient:
     # ============================================================================
     # REQ: GSE-LLR-97: Interface de Encerramento de Socket
     # Descrição: A interface close() deve encerrar o socket principal (close, atribuir None) e registrar o encerramento.
-    # Autor: Fabrício Carneiro Travassos
-    # Revisor: Julia
+    # Autor: Julia
+    # Revisor: Fabrício
     # ============================================================================
     def close(self):
         if self.sock:
@@ -154,39 +154,39 @@ class TFTPClient:
     # REQ: GSE-LLR-98: Interface de Handshake (Definição)
     # Descrição: A rotina perform_authentication(gse_key, expected_bc_key) deve
     #            realizar o handshake TFTP de 4 etapas (DATA/ACK).
-    # Autor: Fabrício Carneiro Travassos
-    # Revisor: Julia
+    # Autor: Julia
+    # Revisor: Fabrício
     # ============================================================================
     # REQ: GSE-LLR-99: Lógica de Handshake (Timeout Curto)
     # Descrição: O timeout original deve ser preservado e, durante o handshake,
     #            substituído por timeout curto (ex.: 5 s).
-    # Autor: Fabrício Carneiro Travassos
-    # Revisor: Julia
+    # Autor: Julia
+    # Revisor: Fabrício
     # ============================================================================
     # REQ: GSE-LLR-100: Lógica de Handshake (Passo 1-2: GSE envia Chave)
     # Descrição: A rotina deve enviar a gse_key em um pacote DATA(1) para a
     #            porta 69 e deve aguardar um ACK(1) do BC, capturando o server_tid.
-    # Autor: Fabrício Carneiro Travassos
-    # Revisor: Julia
+    # Autor: Julia
+    # Revisor: Fabrício
     # ============================================================================
     # REQ: GSE-LLR-101: Lógica de Handshake (Passo 3-4: BC envia Chave)
     # Descrição: A rotina deve aguardar um DATA(1) (contendo a expected_bc_key)
     #            do server_tid do BC e, se a chave for válida, deve responder
     #            com ACK(1) e retornar True.
-    # Autor: Fabrício Carneiro Travassos
-    # Revisor: Julia
+    # Autor: Julia
+    # Revisor: Fabrício
     # ============================================================================
     # REQ: GSE-LLR-102: Lógica de Handshake (Falha)
     # Descrição: Em caso de timeout, pacote TFTP inesperado (opcode/bloco) ou
     #            chave divergente, a rotina deve registrar AUTH-ERRO e retornar False.
-    # Autor: Fabrício Carneiro Travassos
-    # Revisor: Julia
+    # Autor: Julia
+    # Revisor: Fabrício
     # ============================================================================
     # REQ: GSE-LLR-103: Lógica de Handshake (Restauração de Timeout)
     # Descrição: O timeout original deve ser restaurado ao final da execução,
     #            independentemente do resultado do handshake (bloco finally).
-    # Autor: Fabrício Carneiro Travassos
-    # Revisor: Julia
+    # Autor: Julia
+    # Revisor: Fabrício
     # ============================================================================
 
     def perform_authentication(self, gse_key: bytes, expected_bc_key: bytes) -> bool:
@@ -277,8 +277,8 @@ class TFTPClient:
     # Descrição: A rotina recv_ack_packet() deve aguardar um pacote no socket,
     #            validá-lo (GSE-LLR-128), tratar ERRO (GSE-LLR-131) lançando
     #            exceção, e capturar o server_tid na primeira resposta.
-    # Autor: Fabrício Carneiro Travassos
-    # Revisor: Julia
+    # Autor: Julia
+    # Revisor: Fabrício
     # ============================================================================
     def recv_ack_packet(self) -> int:
         if not self.sock:
@@ -305,8 +305,8 @@ class TFTPClient:
     # Descrição: A rotina recv_data_packet() deve aguardar um pacote no socket,
     #            validá-lo (GSE-LLR-127), tratar ERRO (GSE-LLR-131) lançando
     #            exceção, e capturar o server_tid na primeira resposta.
-    # Autor: Fabrício Carneiro Travassos
-    # Revisor: Julia
+    # Autor: Julia
+    # Revisor: Fabrício
     # ============================================================================
     def recv_data_packet(self) -> Optional[Tuple[int, bytes]]:
         if not self.sock:
@@ -334,8 +334,8 @@ class TFTPClient:
     # Descrição: A rotina send_ack(block) deve enviar um pacote ACK (GSE-LLR-125)
     #            para o server_tid conhecido (ou porta 69 se TID for None)
     #            e retornar True.
-    # Autor: Fabrício Carneiro Travassos
-    # Revisor: Julia
+    # Autor: Julia
+    # Revisor: Fabrício
     # ============================================================================
     def send_ack(self, block: int) -> bool:
         if not self.sock:
@@ -353,53 +353,53 @@ class TFTPClient:
     # ============================================================================
     # REQ: GSE-LLR-104: Interface de Leitura de Arquivo (RRQ)
     # Descrição: A rotina read_file() deve efetuar leitura de arquivo via RRQ no modo octet (binário).
-    # Autor: Fabrício Carneiro Travassos
-    # Revisor: Julia
+    # Autor: Julia
+    # Revisor: Fabrício
     # ============================================================================
     # REQ: GSE-LLR-105: Lógica RRQ (Envio)
     # Descrição: O pedido RRQ deve ser enviado para a porta 69 do servidor TFTP.
-    # Autor: Fabrício Carneiro Travassos
-    # Revisor: Julia
+    # Autor: Julia
+    # Revisor: Fabrício
     # ============================================================================
     # REQ: GSE-LLR-106: Lógica RRQ (Proteção de TID)
     # Descrição: O identificador de transferência do servidor (server_tid) deve ser fixado no primeiro DATA recebido e TIDs inesperados devem ser ignorados.
-    # Autor: Fabrício Carneiro Travassos
-    # Revisor: Julia
+    # Autor: Julia
+    # Revisor: Fabrício
     # ============================================================================
     # REQ: GSE-LLR-107: Lógica RRQ (Sequência de Blocos)
     # Descrição: Cada pacote DATA recebido deve possuir número de bloco igual ao esperado (expected_block).
-    # Autor: Fabrício Carneiro Travassos
-    # Revisor: Julia
+    # Autor: Julia
+    # Revisor: Fabrício
     # ============================================================================
     # REQ: GSE-LLR-108: Lógica RRQ (Tratamento Fora de Ordem)
     # Descrição: Em ocorrência de bloco fora de ordem, deve ser reenviado ACK do bloco anterior ao esperado.
-    # Autor: Fabrício Carneiro Travassos
-    # Revisor: Julia
+    # Autor: Julia
+    # Revisor: Fabrício
     # ============================================================================
     # REQ: GSE-LLR-109: Lógica RRQ (Timeout e Retentativa)
     # Descrição: Em caso de timeout, novas tentativas devem ser realizadas até MAX_RETRIES, reenviando RRQ quando o bloco esperado for o primeiro.
-    # Autor: Fabrício Carneiro Travassos
-    # Revisor: Julia
+    # Autor: Julia
+    # Revisor: Fabrício
     # ============================================================================
     # REQ: GSE-LLR-110: Lógica RRQ (Acúmulo de Dados)
     # Descrição: Os payloads recebidos devem ser concatenados em buffer de dados até a conclusão da transferência.
-    # Autor: Fabrício Carneiro Travassos
-    # Revisor: Julia
+    # Autor: Julia
+    # Revisor: Fabrício
     # ============================================================================
     # REQ: GSE-LLR-111: Lógica RRQ (Condição de Término)
     # Descrição: A transferência deve ser considerada concluída quando o tamanho do payload recebido for inferior a BLOCK_SIZE.
-    # Autor: Fabrício Carneiro Travassos
-    # Revisor: Julia
+    # Autor: Julia
+    # Revisor: Fabrício
     # ============================================================================
     # REQ: GSE-LLR-112: Lógica RRQ (Tratamento de Erro)
     # Descrição: Ao receber pacote ERROR, uma exceção padronizada com código e mensagem TFTP deve ser lançada.
-    # Autor: Fabrício Carneiro Travassos
-    # Revisor: Julia
+    # Autor: Julia
+    # Revisor: Fabrício
     # ============================================================================
     # REQ: GSE-LLR-113: Modo de Transferência (Octet)
     # Descrição: As rotinas read_file e write_file devem utilizar, por padrão, o modo "octet" (binário).
-    # Autor: Fabrício Carneiro Travassos
-    # Revisor: Julia
+    # Autor: Julia
+    # Revisor: Fabrício
     # ============================================================================
     def read_file(self, filename: str, mode: str = "octet") -> bytes:
         self.log(f"[TFTP] Lendo arquivo (RRQ): {filename}")
@@ -475,18 +475,18 @@ class TFTPClient:
     # ============================================================================
     # REQ: GSE-LLR-114: Interface de Escrita de Arquivo (WRQ)
     # Descrição: A rotina write_file() deve transmitir arquivo via WRQ no modo octet (binário).
-    # Autor: Fabrício Carneiro Travassos
-    # Revisor: Julia
+    # Autor: Julia
+    # Revisor: Fabrício
     # ============================================================================
     # REQ: GSE-LLR-115: Lógica WRQ (Envio e ACK 0)
     # Descrição: O pedido WRQ deve ser encaminhado à porta 69 e a captura do server_tid deve ocorrer após o recebimento de ACK(0).
-    # Autor: Fabrício Carneiro Travassos
-    # Revisor: Julia
+    # Autor: Julia
+    # Revisor: Fabrício
     # ============================================================================
     # REQ: GSE-LLR-116: Lógica WRQ (Envio de Dados em Blocos)
     # Descrição: Os dados devem ser enviados em chunks de tamanho BLOCK_SIZE como DATA(N), aguardando ACK(N) para cada bloco; concluir ao enviar chunk com tamanho inferior a BLOCK_SIZE.
-    # Autor: Fabrício Carneiro Travassos
-    # Revisor: Julia
+    # Autor: Julia
+    # Revisor: Fabrício
     # ============================================================================
     def write_file(self, filename: str, data: bytes, mode: str = "octet") -> bool:
         self.log(f"[TFTP] Escrevendo arquivo (WRQ): {filename}")
@@ -554,8 +554,8 @@ class TFTPClient:
     # ============================================================================
     # REQ: GSE-LLR-117: Interface de Recepção (WRQ + DATA 1)
     # Descrição: A rotina receive_wrq_and_data() deve aguardar WRQ no socket principal, responder com ACK(0), aguardar DATA(1), enviar ACK(1) e retornar o payload do DATA(1).
-    # Autor: Fabrício Carneiro Travassos
-    # Revisor: Julia
+    # Autor: Julia
+    # Revisor: Fabrício
     # ============================================================================
     def receive_wrq_and_data(self) -> bytes:
         self.log("[TFTP-ARINC] Aguardando WRQ (LUS) no socket principal...")
@@ -585,18 +585,18 @@ class TFTPClient:
     # ============================================================================
     # REQ: GSE-LLR-118: Interface de Servidor de Arquivo (RRQ)
     # Descrição: A rotina serve_file_on_rrq() deve aguardar RRQ esperado, criar socket efêmero, enviar o arquivo em blocos com espera de ACK, enviar pacote final de 0 bytes quando total % BLOCK_SIZE == 0, enviar o HASH em seguida e encerrar o socket de transferência.
-    # Autor: Fabrício Carneiro Travassos
-    # Revisor: Julia
+    # Autor: Julia
+    # Revisor: Fabrício
     # ============================================================================
     # REQ: GSE-LLR-119: Callback de Progresso (Servidor)
     # Descrição: Um progress_callback(int) opcional deve ser aceito e invocado a cada bloco confirmado, reportando int(0–100) de progresso.
-    # Autor: Fabrício Carneiro Travassos
-    # Revisor: Julia
+    # Autor: Julia
+    # Revisor: Fabrício
     # ============================================================================
     # REQ: GSE-LLR-122: Enviar HASH como Próximo DATA
     # Descrição: Após concluir o envio do arquivo, o conteúdo de hash_data deve ser transmitido como próximo DATA, com espera do ACK correspondente.
-    # Autor: Fabrício Carneiro Travassos
-    # Revisor: Julia
+    # Autor: Julia
+    # Revisor: Fabrício
     # ============================================================================
     def serve_file_on_rrq(
         self,
@@ -673,13 +673,13 @@ class TFTPClient:
     # ============================================================================
     # REQ: GSE-LLR-121: Interface Interna (Envio com Retentativa)
     # Descrição: O método _send_data_and_wait_ack() deve enviar DATA(block) e aguardar ACK(block) do endereço correto; em timeout/ACK inválido, novas tentativas devem ocorrer até MAX_RETRIES, com exceção ao exceder o limite.
-    # Autor: Fabrício Carneiro Travassos
-    # Revisor: Julia
+    # Autor: Julia
+    # Revisor: Fabrício
     # ============================================================================
     # REQ: GSE-LLR-120: Política de Backoff (Retransmissões)
     # Descrição: Uma política de backoff progressivo (exponencial simples com teto) deve ser aplicada entre retransmissões, implementada no tratamento de timeout.
-    # Autor: Fabrício Carneiro Travassos
-    # Revisor: Julia
+    # Autor: Julia
+    # Revisor: Fabrício
     # ============================================================================
     def _send_data_and_wait_ack(
         self, sock: socket.socket, block: int, data: bytes, addr: Tuple[str, int]
@@ -723,13 +723,13 @@ class TFTPClient:
     # ============================================================================
     # REQ: GSE-LLR-123: Interface Interna (Construção de RRQ)
     # Descrição: O método _send_rrq() deve construir e enviar RRQ no formato: (Opcode 1, big-endian) + filename(ascii)+NUL + mode(ascii)+NUL, aplicando sanitização de filename previamente (GSE-LLR-131).
-    # Autor: Fabrício Carneiro Travassos
-    # Revisor: Julia
+    # Autor: Julia
+    # Revisor: Fabrício
     # ============================================================================
     # REQ: GSE-LLR-131: Sanitização de Filename (Aplicação)
     # Descrição: As rotinas _send_rrq/_send_wrq devem aplicar sanitização de filename antes do envio.
-    # Autor: Fabrício Carneiro Travassos
-    # Revisor: Julia
+    # Autor: Julia
+    # Revisor: Fabrício
     # ============================================================================
     def _send_rrq(self, filename: str, mode: str, addr: Tuple[str, int]):
         filename = self._sanitize_filename(filename)
@@ -742,8 +742,8 @@ class TFTPClient:
     # ============================================================================
     # REQ: GSE-LLR-124: Interface Interna (Construção de WRQ)
     # Descrição: O método _send_wrq() deve construir e enviar WRQ no formato: (Opcode 2, big-endian) + filename(ascii)+NUL + mode(ascii)+NUL, aplicando sanitização de filename previamente (GSE-LLR-131).
-    # Autor: Fabrício Carneiro Travassos
-    # Revisor: Julia
+    # Autor: Julia
+    # Revisor: Fabrício
     # ============================================================================
     def _send_wrq(self, filename: str, mode: str, addr: Tuple[str, int]):
         filename = self._sanitize_filename(filename)
@@ -756,8 +756,8 @@ class TFTPClient:
     # ============================================================================
     # REQ: GSE-LLR-125: Interface Interna (Construção de ACK)
     # Descrição: A rotina _send_ack() deve construir e enviar ACK no formato: (Opcode 4, big-endian) + (block, 16-bit big-endian).
-    # Autor: Fabrício Carneiro Travassos
-    # Revisor: Julia
+    # Autor: Julia
+    # Revisor: Fabrício
     # ============================================================================
     def _send_ack(self, block: int, addr: Tuple[str, int], sock: socket.socket = None):
         pkt = struct.pack("!HH", TFTP_OPCODE.ACK.value, block)
@@ -766,8 +766,8 @@ class TFTPClient:
     # ============================================================================
     # REQ: GSE-LLR-126: Interface Interna (Construção de DATA)
     # Descrição: A rotina _send_data() deve construir e enviar DATA no formato: (Opcode 3, big-endian) + (block, 16-bit big-endian) + (data), impondo len(data) ≤ BLOCK_SIZE e lançando erro quando houver violação.
-    # Autor: Fabrício Carneiro Travassos
-    # Revisor: Julia
+    # Autor: Julia
+    # Revisor: Fabrício
     # ============================================================================
     def _send_data(
         self, block: int, data: bytes, addr: Tuple[str, int], sock: socket.socket = None
@@ -780,8 +780,8 @@ class TFTPClient:
     # ============================================================================
     # REQ: GSE-LLR-127: Interface Interna (Análise de DATA)
     # Descrição: A rotina _parse_data_packet() deve retornar (None, 0, b"") quando o tamanho do pacote for inferior a 4 bytes; caso contrário, deve retornar (Opcode, block, payload).
-    # Autor: Fabrício Carneiro Travassos
-    # Revisor: Julia
+    # Autor: Julia
+    # Revisor: Fabrício
     # ============================================================================
     def _parse_data_packet(self, data: bytes) -> Tuple[TFTP_OPCODE, int, bytes]:
         if len(data) < 4:
@@ -794,8 +794,8 @@ class TFTPClient:
     # ============================================================================
     # REQ: GSE-LLR-128: Interface Interna (Análise de ACK)
     # Descrição: A rotina _parse_ack_packet() deve retornar (None, 0) quando o pacote possuir menos de 4 bytes; caso contrário, deve retornar (Opcode, block).
-    # Autor: Fabrício Carneiro Travassos
-    # Revisor: Julia
+    # Autor: Julia
+    # Revisor: Fabrício
     # ============================================================================
     def _parse_ack_packet(self, data: bytes) -> Tuple[TFTP_OPCODE, int]:
         if len(data) < 4:
@@ -807,8 +807,8 @@ class TFTPClient:
     # ============================================================================
     # REQ: GSE-LLR-129: Interface Interna (Análise de RRQ/WRQ)
     # Descrição: A rotina _parse_rrq_packet() deve retornar (Opcode, filename), ignorando opções TFTP (modo, blksize etc.) após o primeiro NUL.
-    # Autor: Fabrício Carneiro Travassos
-    # Revisor: Julia
+    # Autor: Julia
+    # Revisor: Fabrício
     # ============================================================================
     def _parse_rrq_packet(self, data: bytes) -> Tuple[TFTP_OPCODE, str]:
         if len(data) < 4:
@@ -823,8 +823,8 @@ class TFTPClient:
     # ============================================================================
     # REQ: GSE-LLR-130: Interface Interna (Análise de ERROR)
     # Descrição: A rotina _parse_error_packet() deve retornar (0, "Pacote de erro malformado") quando o pacote possuir menos de 5 bytes; caso contrário, deve retornar (error_code, error_msg) com mensagem decodificada e sem NUL final.
-    # Autor: Fabrício Carneiro Travassos
-    # Revisor: Julia
+    # Autor: Julia
+    # Revisor: Fabrício
     # ============================================================================
     def _parse_error_packet(self, data: bytes) -> Tuple[int, str]:
         if len(data) < 5:
@@ -837,8 +837,8 @@ class TFTPClient:
     # REQ: GSE-LLR-132: Sanitização de Filename (Implementação)
     # Descrição: O método _sanitize_filename(name) deve remover diretórios, proibir '..' e filtrar para ASCII seguro [a-zA-Z0-9._-@+],
     # lançando ValueError quando o nome resultar vazio/inválido após sanitização.
-    # Autor: Fabrício Carneiro Travassos
-    # Revisor: Julia
+    # Autor: Julia
+    # Revisor: Fabrício
     # ============================================================================
     @staticmethod
     def _sanitize_filename(name: str) -> str:
