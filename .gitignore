@@ -332,3 +332,5 @@ compile_commands.json
 /modulo_bc/sdkconfig
 /modulo_bc/sdkconfig.ci
 /modulo_bc/sdkconfig.old%
+
+/logs/

@@ -1,3 +1,0 @@
-[15:16:29.434] --- SESSÃO GSE INICIADA ---
-[15:16:29.434] Controlador de Upload inicializado. Threads: 16
-[15:16:29.434] Log de sessão salvo em: C:\PES\TCC\gse_fls\logs\GSE_Sessao_2025-11-05_15-16-29.txt
