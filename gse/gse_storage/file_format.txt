@@ -1,0 +1,7 @@
+Software load file format:
+
+The following fields are sequentially stored in the load file:
+- HEADER: 20 bytes starting at byte 0: Contains the software part-number stored as an ASCII string. NUL terminator not required but all the remaining bytes must be set to NUL.
+- DATA: <n> bytes starting after HEADER: The software binary contents. Size is variable.
+- TRAILING: 32 bytes starting after DATA: Contains the SHA-256 hash calculated from the DATA field.
+	
