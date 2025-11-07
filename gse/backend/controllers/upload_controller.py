@@ -193,6 +193,65 @@ class UploadController(QObject):
         return "PN_NAO_ENCONTRADO"
 
     # ============================================================================
+    # REQ: GSE-LLR-211: Lógica (Análise de Conteúdo - Leitura Inicial)
+    # Descrição: A análise secundária DEVE ler os 20 primeiros bytes do arquivo
+    #   especificado, correspondentes ao campo de Part Number (PN) no cabeçalho.
+    # Autor: Julia
+    # Revisor: Julia
+    # ============================================================================
+
+    # ============================================================================
+    # REQ: GSE-LLR-212: Lógica (Análise de Conteúdo - Validação de Prefixo)
+    # Descrição: Caso o conteúdo lido se inicie com "EMB-", DEVE prosseguir com
+    #   o processamento; caso contrário, encerrar a análise e retornar None.
+    # Autor: Julia
+    # Revisor: Julia
+    # ============================================================================
+
+    # ============================================================================
+    # REQ: GSE-LLR-213: Lógica (Análise de Conteúdo - Decodificação)
+    # Descrição: A função DEVE decodificar os bytes lidos em UTF-8, removendo
+    #   caracteres nulos e espaços em branco antes da avaliação final.
+    # Autor: Julia
+    # Revisor: Julia
+    # ============================================================================
+
+    # ============================================================================
+    # REQ: GSE-LLR-214: Lógica (Análise de Conteúdo - Retorno)
+    # Descrição: A função DEVE retornar o valor resultante como Part Number (PN)
+    #   quando válido, ou None caso as condições anteriores não sejam atendidas.
+    # Autor: Julia
+    # Revisor: Julia
+    # ============================================================================
+
+    def _parse_pn_from_content(self, filepath: str) -> str | None:
+        """
+        Lê os primeiros 20 bytes do arquivo (em 'filepath')
+        para tentar extrair o Part Number (PN).
+        Retorna o PN (str) em caso de sucesso, ou None em falha.
+        """
+        try:
+            # [GSE-LLR-212] Leitura dos 20 primeiros bytes do arquivo
+            with open(filepath, "rb") as f:
+                first_bytes = f.read(20)
+
+            # [GSE-LLR-213] Verificação de prefixo "EMB-"
+            if first_bytes.startswith(b"EMB-"):
+                # [GSE-LLR-214] Decodificação e limpeza do conteúdo
+                pn = first_bytes.decode("utf-8", errors="ignore").strip("\x00").strip()
+
+                # [GSE-LLR-215] Retorno do PN válido
+                if pn:
+                    return pn
+
+            # Caso não atenda aos critérios, retorna None
+            return None
+
+        except Exception as e:
+            self._log_handler(f"[ERRO] Falha ao ler conteúdo do arquivo para PN: {e}")
+            return None
+
+    # ============================================================================
     # REQ: GSE-LLR-169: Interface de Seleção de Imagem (Slot)
     # Descrição: DEVE existir uma interface de seleção de imagem exposta à
     #   camada de UI para receber o `path` (caminho original, str)
@@ -233,6 +292,16 @@ class UploadController(QObject):
     # Descrição: A interface de seleção de imagem DEVE emitir o sinal
     #   `fileDetailsReady` (GSE-LLR-157) com o PN analisado e o `new_path`
     #   (o novo caminho interno).
+    # ---
+    # REQ: GSE-LLR-215: Lógica (Análise de PN - Fallback para Conteúdo)
+    # Descrição: Se a análise de PN por nome de arquivo falhar (retornar
+    #   "PN_NAO_ENCONTRADO"), a interface DEVE invocar uma análise secundária,
+    #   lendo o conteúdo do arquivo no `new_path`.
+    # ---
+    # REQ: GSE-LLR-216: Lógica (Análise de Conteúdo - Falha)
+    # Descrição: Se a análise secundária falhar (erro de leitura, ou a linha
+    #   não começar com "EMB-"), ela DEVE retornar um indicador de falha
+    #   (None), e o PN final DEVE permanecer "PN_NAO_ENCONTRADO".
     #
     # Autor: Julia
     # Revisor: Fabrício
@@ -284,9 +353,32 @@ class UploadController(QObject):
         # GSE-LLR-174
         self.selected_path = new_path
 
-        # GSE-LLR-176
-        self.selected_pn = self.parse_pn_from_filename(filename)
-        self._log_handler(f"PN detectado: {self.selected_pn}")
+        # ====================================================================
+        # Lógica de Análise de PN (Implementa LLR-176, 211, 215, 216)
+        # ====================================================================
+
+        # 1. Tentar pelo nome do arquivo (LLR-176)
+        pn = self.parse_pn_from_filename(filename)
+
+        # 2. Se falhar, tentar pelo conteúdo do arquivo (LLR-215)
+        if pn == "PN_NAO_ENCONTRADO":
+
+            # (Implementa LLR-211)
+            pn_from_content = self._parse_pn_from_content(self.selected_path)
+
+            if pn_from_content:
+                self._log_handler(f"PN encontrado no conteúdo: {pn_from_content}")
+                pn = pn_from_content
+            else:
+                # (Implementa LLR-216)
+                self._log_handler(
+                    "PN também não foi encontrado no conteúdo do arquivo."
+                )
+                # pn (já é "PN_NAO_ENCONTRADO")
+
+        self.selected_pn = pn
+
+        # ====================================================================
 
         # GSE-LLR-177
         self.fileDetailsReady.emit(self.selected_pn, self.selected_path)

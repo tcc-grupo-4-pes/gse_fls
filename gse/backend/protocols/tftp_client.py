@@ -607,7 +607,18 @@ class TFTPClient:
     ) -> bool:
         self.log(f"[TFTP-ARINC] Aguardando RRQ para '{expected_filename}'...")
 
-        rrq_pkt, rrq_addr = self.sock.recvfrom(516)
+        # Erro do PN
+        try:
+            rrq_pkt, rrq_addr = self.sock.recvfrom(516)
+        except socket.timeout:
+            self.log(
+                "[TFTP-ERRO] Isso pode indicar uma falha no Alvo ou que o PN é inválido/rejeitado."
+            )
+            # Levanta uma exceção específica que será pega pelo worker
+            raise Exception(
+                f"Falha de PN: Timeout ao aguardar RRQ para {expected_filename}"
+            )
+
         opcode, filename = self._parse_rrq_packet(rrq_pkt)
 
         if opcode != TFTP_OPCODE.RRQ:

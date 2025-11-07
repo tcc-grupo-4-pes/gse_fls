@@ -1,0 +1,6 @@
+Release notes for software load: EMB-0001-021-045
+
+Load file name: EMB-0001-021-045.bin
+Size of file in bytes: 10485812
+Size of data block in bytes: 10485760
+Data block SHA256: 640f6d2bf100584d9880df39763ca96eb7905213dd0cac0232809d7addbf52de

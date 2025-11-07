@@ -16,6 +16,7 @@ from PySide6.QtCore import QObject, QRunnable, Signal, Slot
 # Importa os módulos de protocolo que criamos
 from backend.protocols.tftp_client import TFTPClient
 from backend.protocols.arinc615a import Arinc615ASession
+from backend.protocols.wifi_utils import check_wifi_connection
 
 
 # ============================================================================
@@ -168,12 +169,29 @@ class ArincWorker(QRunnable):
             def progress(pct):
                 self.signals.progress.emit(pct)
 
+            # ==================================================================
+            # [NOVO] PASSO 1: VERIFICAR O AMBIENTE (WI-FI) ANTES DE TUDO
+            # ==================================================================
+            # A constante do SSID agora mora aqui, no orquestrador
+            EXPECTED_SSID = "FCC01"
+
+            # A função 'check_wifi_connection' levanta sua própria
+            # exceção em caso de falha, que será pega pelo 'except' abaixo.
+            check_wifi_connection(EXPECTED_SSID, logger)
+
+            self.signals.log.emit("[WORKER] Verificação de Wi-Fi OK.")
+            # ==================================================================
+
+            # ==================================================================
+            # PASSO 2: CRIAR E CONECTAR O CLIENTE TFTP (JÁ VERIFICADO)
+            # ==================================================================
             # GSE-LLR-140
             client = TFTPClient(self.ip, logger=logger)
 
             # GSE-LLR-141
-            if not client.connect():
-                raise Exception("Falha ao criar socket principal do TFTPClient")
+            # Apenas conecta o socket. O Wi-Fi já foi checado.
+            client.connect()
+            # ==================================================================
 
             # GSE-LLR-142
             session = Arinc615ASession(
@@ -181,16 +199,22 @@ class ArincWorker(QRunnable):
             )
 
             # GSE-LLR-143
-            session.run_upload_flow(self.file_path, self.pn)
+            success = session.run_upload_flow(self.file_path, self.pn)
 
             # GSE-LLR-144
-            self.signals.finished.emit(True)
+            if success:
+                self.signals.finished.emit(True)
+            else:
+                self.signals.log.emit(
+                    "[WORKER-ERRO] O fluxo ARINC falhou de forma controlada (sem exceção)."
+                )
+                self.signals.finished.emit(False)
 
         except Exception as e:
             # GSE-LLR-146
             self.signals.log.emit(f"[WORKER-ERRO] Erro fatal na thread: {e}")
             # GSE-LLR-147
-            self.signals.log.emit(traceback.format_exc())
+            # self.signals.log.emit(traceback.format_exc())
             # GSE-LLR-148
             self.signals.finished.emit(False)
 
