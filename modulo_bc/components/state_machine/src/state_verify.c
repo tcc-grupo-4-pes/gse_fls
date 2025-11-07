@@ -1,7 +1,7 @@
 #include "state_machine/fsm.h"
 #include "esp_log.h"
 #include <string.h>
-
+#include <storage.h>
 static const char *TAG = "STATE_VERIFY";
 
 static void state_verify_enter(void)
@@ -13,13 +13,14 @@ static fsm_state_t state_verify_run(void)
 {
     ESP_LOGI(TAG, "RUNNING ST_VERIFY");
 
-    /* BC-LLR-42 - No estado VERIFY, com o SHA256 esperado recebido e o SHA256 calculado durante o recebimento do firmware, 
+    // Verificação de PN movida para o primeiro pacote de dados em make_rrq (tftp.c)
+    /* BC-LLR-42 - No estado VERIFY, com o SHA256 esperado recebido e o SHA256 calculado durante o recebimento do firmware,
     o software do B/C deve compará-los e verificação se são iguais para atestar integridade do recebimento do firmware
     */
     if (memcmp(req.data.data, hash, 32) != 0)
     {
         /* BC-LLR-65 - Erro de integridade - SHA256 diferente
-        No estado VERIFY, caso o SHA256 calculado não seja igual ao recebido do GSE, 
+        No estado VERIFY, caso o SHA256 calculado não seja igual ao recebido do GSE,
         o software deve ir para o estado ERROR e parar a execução da tarefa*/
         ESP_LOGE(TAG, "Hash SHA-256 não confere! Arquivo corrompido.");
         return ST_ERROR;
@@ -27,7 +28,7 @@ static fsm_state_t state_verify_run(void)
     else
     {
         /* BC-LLR-43 - Transição para estado SAVE
-        No estado VERIFY, com a integridade verificada, 
+        No estado VERIFY, com a integridade verificada,
         o software do B/C deve transicionar do estado para o estado SAVE
         */
         ESP_LOGI(TAG, "Hash SHA-256 conferido com sucesso.");

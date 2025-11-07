@@ -20,11 +20,13 @@ unsigned char hash[32];           // SHA-256
 auth_keys_t auth_keys;            // Chaves de autenticação
 uint8_t upload_failure_count = 0; // Contador de falhas de upload
 
-// Lista de Part Numbers suportados (exemplo - ajustar conforme hardware real)
+// Lista de Part Numbers de software suportados (exemplo - ajustar conforme hardware real)
 const char *SUPPORTED_PNS[SUPPORTED_PNS_COUNT] = {
     "EMB-SW-007-137-045",
     "EMB-SW-007-137-046",
     "EMB-SW-007-137-047"};
+
+const char *HW_PN = "EMB-HW-002-021-003"; // PN do hardware atual
 
 /* BC-LLR-34 - Verificação do PN
  Em UPLOAD_PREP, o software do B/C deve verificar se o PN recebido pelo arquivo .LUR está presente na lista local de PNs suportados pelo módulo B/C 

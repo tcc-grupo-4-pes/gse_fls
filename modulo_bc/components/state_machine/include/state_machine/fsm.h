@@ -67,6 +67,7 @@ extern uint8_t upload_failure_count; // Contador de falhas de upload
 // Lista de Part Numbers (PNs) suportados pelo módulo B/C
 #define SUPPORTED_PNS_COUNT 3
 extern const char *SUPPORTED_PNS[SUPPORTED_PNS_COUNT];
+extern const char *HW_PN; // PN do hardware atual
 #define MAX_UPLOAD_FAILURES 2 // Máximo de tentativas falhas antes de ERROR
 
 // Função para verificar se PN é suportado

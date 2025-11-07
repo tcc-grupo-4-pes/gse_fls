@@ -12,7 +12,9 @@ static fsm_state_t state_error_run(void)
 {
     ESP_LOGE(TAG, "SISTEMA EM ESTADO DE ERRO - EXECUÇÃO INTERROMPIDA");
 
-    // Permanece no estado de erro indefinidamente
+    // Para o funcionamento do ESP
+    abort();
+
     return ST_ERROR;
 }
 

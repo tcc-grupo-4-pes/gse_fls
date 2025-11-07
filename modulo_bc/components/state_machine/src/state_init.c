@@ -60,6 +60,7 @@ static fsm_state_t state_init_run(void)
     se não houver sinalização de manutenção
     */
     ESP_LOGI(TAG, "Inicialização completa - transição para ST_OPERATIONAL");
+
     return ST_OPERATIONAL;
 }
 
