@@ -418,18 +418,26 @@ void make_rrq(int sock, struct sockaddr_in *client_addr, const char *filename, u
         int data_len = n - 4;
         ESP_LOGI(TAG, "Bloco %d recebido (%d bytes)", ntohs(data_pkt.data.block), data_len);
 
-        // RASTREAR Verificação antecipada do PN nos primeiros bytes do firmware (offset 20, tamanho 20)
+        /* BC-LLR-103 Compatibilidade do PN de hardware
+        No primeiro pacote de dados do firmware, o software deve verificar se o PN de Hardware 
+        (ler 20 bytes depois do byte 20 do pacote conforme BC-ARTG-11) é compatível com o PN 
+        do Hardware do módulo
+        */
         if (!pn_checked && total_bytes == 0)
         {
-            const size_t PN_OFFSET = 20;
-            const size_t PN_SIZE = 20;
+            const size_t PN_OFFSET = 20; /* BC-ARTG-11 */
+            const size_t PN_SIZE = 20;  /* BC-ARTG-11 */
             if (data_len >= (int)(PN_OFFSET + PN_SIZE))
             {
                 const unsigned char *pn_ptr = (const unsigned char *)data_pkt.data.data + PN_OFFSET;
 
-            
+                /* BC-LLR-103 */
                 if (memcmp(pn_ptr, HW_PN, PN_SIZE) != 0)
                 {
+                    /* BC-LLR-104 Erro de compatibilidade do PN de hardware
+                    Ao verificar a compatibilidade do PN-HW no primeiro pacote do firmware, caso o PN de hardware 
+                    extraído não seja igual ao do módulo B/C, o software deve fechar a escrita do arquivo temporário,
+                    parar o cálculo incremental do SHA256 e retornar indicando falha*/
                     ESP_LOGE(TAG, "PN inválido no firmware recebido. Abortando recebimento.");
                     fclose(temp_file);
                     mbedtls_sha256_free(&sha_ctx);
@@ -437,7 +445,7 @@ void make_rrq(int sock, struct sockaddr_in *client_addr, const char *filename, u
                     return;
                 }
                 ESP_LOGI(TAG, "PN de hardware verificado com sucesso no primeiro pacote: %s",HW_PN);
-                pn_checked = true;
+                pn_checked = true; /* Apenas entra nessa condição no primeiro pacote*/
             }
             else
             {
