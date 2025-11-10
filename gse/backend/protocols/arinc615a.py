@@ -327,9 +327,8 @@ class Arinc615ASession:
             self.log(
                 "[ARINC-ERRO] Timeout! O dispositivo não enviou o LUS 100% a tempo."
             )
-            self.log(
-                "[ARINC-ERRO] O alvo pode estar ocupado (flash) ou pode ter falhado."
-            )
+            self.log("[ARINC-ERRO] O alvo pode estar ocupado (flash)...")
+            self.log("[HASH-ERRO] ou o hash SHA-256 não conferiu, ARQUIVO CORROMPIDO!!")
             raise Exception("Falha no LUS 100%: Timeout")
 
         prog_100 = models.parse_lus_progress(lus_100_data)
