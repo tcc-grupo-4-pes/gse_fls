@@ -3,14 +3,14 @@ import QtQuick.Controls 2.15
 import QtQuick.Dialogs
 
 // ============================================================================
-// REQ: GSE-LLR-12 – Página Dedicada para Upload de Imagens (GSE)
+// REQ: GSE-LLR-12 – Exibição do PN em Campo Específico
 // Tipo: Requisito Funcional
-// Descrição: O sistema deve disponibilizar uma página exclusiva de Upload
-// responsável por concentrar as funções de seleção de imagem, confirmação de envio,
-// apresentação de progresso de transferência e exibição do status final (sucesso ou falha).
+// Descrição: A página de upload deve exibir o PN da imagem selecionada em um
+// campo exclusivo, somente leitura, atualizado imediatamente após a seleção.
 // Autor: Fabrício
 // Revisor: Julia
 // ============================================================================
+
 Item {
     id: uploadPage
 
@@ -19,7 +19,8 @@ Item {
     property string selectedImage: ""
     // Flag para controle de UI durante transferência
     property bool isTransferring: false
-
+    property bool lastTransferFailed: false
+   
     function appendLog(msg) {
         logsArea.text += msg + "\n"
         logsArea.cursorPosition = logsArea.length
@@ -41,24 +42,27 @@ Item {
             appendLog("[info] Transferência iniciada.")
             // Entra em modo de transferência: desabilita todos os botões via binding
             isTransferring = true
+            lastTransferFailed = false            // ← limpa falha ao iniciar
         }
 
         function onTransferFinished(ok) {
             appendLog(ok ? "[ok] Transferência concluída." : "[erro] Transferência falhou.")
             // Sai do modo de transferência
             isTransferring = false
+            lastTransferFailed = !ok              // ← grava falha se necessário
 
             // Limpa seleção (imagem e PN) e reseta progresso.
             // Mantém apenas os logs, retornando ao estado inicial.
             selectedImage = ""
             selectedPN = ""
-            uploadProgressBar.value = 0
+            
         }
 
         // Recebe detalhes do arquivo selecionado (PN e nome) do backend
         function onFileDetailsReady(pn, filename) {
             uploadPage.selectedPN = pn
             uploadPage.selectedImage = filename
+            uploadProgressBar.value = 0
             // Habilitação do botão Transferir é automática via binding
         }
     }
@@ -119,13 +123,11 @@ Item {
         }
 
         // ============================================================================
-        // REQ: GSE-LLR-16 – Campo de exibição (pré-visualização) da imagem selecionada
+        // REQ: GSE-LLR-16 – Campo de Exibição da Imagem Selecionada
         // Tipo: Requisito Funcional
-        // Rastreabilidade: GSE-HLR-1, GSE-HLR-5
-        // Título: Campo de exibição (pré-visualização) da imagem selecionada
-        // Descrição: A página de upload deve apresentar um campo de pré-visualização que
-        // mostre o caminho da imagem do arquivo selecionado (quando aplicável). Quando não
-        // houver seleção, esse campo deve estar vazio.
+        // Descrição: A página de upload deve conter um campo para exibir o nome da imagem
+        // selecionada, acompanhado do rótulo “Imagem:”. O campo deve manter o mesmo padrão
+        // visual do campo PN e estar perfeitamente alinhado horizontalmente com ele.
         // Autor: Fabrício
         // Revisor: Julia
         // ============================================================================
@@ -170,14 +172,10 @@ Item {
         }
 
         // ============================================================================
-        // REQ: GSE-LLR-17 – Área de exibição de logs (somente leitura) com barra de rolagem
+        // REQ: GSE-LLR-17 – Área de Logs com Rolagem
         // Tipo: Requisito Funcional
-        // Rastreabilidade: GSE-HLR-5, GSE-HLR-31
-        // Título: Área de exibição de logs (somente leitura) com barra de rolagem
-        // Descrição: A página de upload deve disponibilizar uma área de logs para exibir
-        // mensagens de operação (ex.: seleção, início de upload, progresso, sucesso/falha).
-        // O campo deve ser somente leitura e possuir barra de rolagem vertical, permitindo
-        // ao operador visualizar todo o histórico de mensagens sem perda de informações.
+        // Descrição: Disponibilizar uma área somente leitura para exibição contínua de
+        // logs da operação, com rolagem vertical e API para acréscimo de mensagens.
         // Autor: Fabrício
         // Revisor: Julia
         // ============================================================================
@@ -270,6 +268,118 @@ Item {
                 border.color: "#b0c6d4"
                 border.width: 1
             }
+            
+        // === Indicador à direita da barra ===
+        Item {
+            id: transferIndicator
+            width: 24
+            height: 24
+            anchors.left: uploadProgressBar.right
+            anchors.leftMargin: 10
+            anchors.verticalCenter: uploadProgressBar.verticalCenter
+
+        
+        // ============================================================================
+        // REQ: GSE-LLR-215 – Spinner de Transferência 
+        // Tipo: Requisito Funcional
+        // Descrição: A interface de upload DEVE exibir, à direita da barra de progresso,
+        // um spinner animado durante a transferência.
+        // Autor: Nara
+        // Revisor: Fabrício
+        // ============================================================================
+        Canvas {
+            id: spinnerCanvas
+            anchors.fill: parent
+            visible: isTransferring
+            onPaint: {
+                var ctx = getContext("2d");
+                ctx.reset();
+                var w = width;
+                var h = height;
+                var r = Math.min(w, h)/2 - 2;
+
+                ctx.translate(w/2, h/2);
+                ctx.rotate(spinnerCanvas.rotation * Math.PI / 180);
+
+            // arco
+                ctx.lineWidth = 3;
+                ctx.lineCap = "round";
+                ctx.strokeStyle = "#0067B1";   // azul GSE
+                ctx.beginPath();
+            // ~300° de arco, deixando gap
+                ctx.arc(0, 0, r, 0.0, 1.7*Math.PI, false);
+                ctx.stroke();
+
+            // "ponta" do arco (dot)
+                ctx.beginPath();
+                ctx.fillStyle = "#0067B1";
+                var angle = 1.7*Math.PI;
+                ctx.arc(Math.cos(angle)*r, Math.sin(angle)*r, 2.3, 0, 2*Math.PI);
+                ctx.fill();
+        }
+
+            // rotação contínua
+        NumberAnimation on rotation {
+            from: 0; to: 360; duration: 900
+            loops: Animation.Infinite
+            running: isTransferring
+        }
+    }
+
+        // ============================================================================
+        // REQ: GSE-LLR- 197 – Indicador visual de conclusão
+        // Tipo: Requisito Funcional
+        // Descrição:A interface de upload DEVE exibir um indicador visual à direita da 
+        // barra de progresso,mostrando animação de carregamento durante a transferência 
+        // e ícone de confirmação (✓) quando concluída com sucesso.
+        // Autor: Nara
+        // Revisor: Fabrício
+        // ============================================================================
+        Rectangle {
+            id: successCheck
+            anchors.fill: parent
+            radius: width/2
+            color: "#10b981"     // verde sucesso
+            border.width: 1
+            border.color: "#0d8f6d"
+            visible: !isTransferring && uploadProgressBar.value === 100
+
+        Text {
+            anchors.centerIn: parent
+            text: "✓"
+            color: "white"
+            font.pixelSize: 14
+            font.bold: true
+        }
+        
+    }
+       // ============================================================================
+        // REQ: GSE-LLR-216 – Indicador de Falha na Transferência
+        // Tipo: Requisito Funcional
+        // Descrição: A interface de upload DEVE exibir, à direita da barra de progresso,
+        // um ícone de falha (X em fundo vermelho) quando a transferência for sem sucesso.
+        // Autor: Nara
+        // Revisor: Fabrício
+        // ============================================================================
+    Rectangle {
+        id: failBadge
+        anchors.fill: parent
+        radius: width / 2
+        color: "#ef4444"          // vermelho
+        border.width: 1
+        border.color: "#b91c1c"
+        visible: !isTransferring && lastTransferFailed
+
+    Text {
+        anchors.centerIn: parent
+        text: "✕"             // ou "X"
+        color: "white"
+        font.pixelSize: 14
+        font.bold: true
+    }
+}
+
+}
 
             contentItem: Item {
                 anchors.fill: parent
@@ -297,19 +407,19 @@ Item {
 
             property int buttonWidth: 194
 
-            // ============================================================================
-            // REQ: GSE-LLR-19 – Botão “Transferir” (Iniciar Upload)
-            // Tipo: Requisito Funcional
-            // Rastreabilidade: GSE-HLR-2, GSE-HLR-7
-            // Título: Botão “Transferir” (Iniciar Upload)
-            // Descrição: A página de upload deve apresentar um botão de ação principal rotulado
-            // “Transferir”, posicionado em uma linha de ações logo abaixo da barra de progresso.
-            // O botão deve iniciar o processo de carregamento da imagem para o Módulo B/C quando
-            // acionado. Ele deve permanecer desabilitado até que uma imagem válida e um PN tenham
-            // sido selecionados, garantindo que a operação ocorra apenas com dados válidos.
-            // Autor: Fabrício
-            // Revisor: Julia
-            // ============================================================================
+        // ============================================================================
+        // REQ: GSE-LLR-19 – Botão “Transferir” (Iniciar Upload)
+        // Tipo: Requisito Funcional
+        // Descrição: A página de upload deve apresentar um botão de ação principal
+        // rotulado “Transferir”, posicionado em uma linha de ações logo abaixo da barra
+        // de progresso. O botão deve iniciar o processo de carregamento da imagem para o
+        // Módulo B/C quando acionado. Ele deve permanecer desabilitado até que uma imagem
+        // válida e um PN tenham sido selecionados. O estilo do botão deve seguir as cores
+        // institucionais da Embraer, utilizando fundo azul (#0067B1), variação para hover/
+        // pressed (#017CD4) e texto branco.
+        // Autor: Fabrício
+        // Revisor: Julia
+        // ============================================================================
             Button {
                 id: btnTransferir
                 text: qsTr("Transferir")
@@ -343,19 +453,18 @@ Item {
                 }
             }
 
-            // ============================================================================
-            // REQ: GSE-LLR-20 – Botão “Selecionar Imagem” (Escolha de Arquivo)
-            // Tipo: Requisito Funcional
-            // Rastreabilidade: GSE-HLR-7
-            // Título: Botão “Selecionar Imagem” (Escolha de Arquivo)
-            // Descrição: A página de upload deve conter um botão rotulado “Selecionar Imagem”,
-            // localizado na mesma linha de ações abaixo da barra de progresso. Esse botão deve
-            // abrir uma janela do sistema operacional que permita ao operador selecionar o
-            // arquivo de imagem a ser carregado. Após a seleção, o sistema deve atualizar os
-            // campos correspondentes e registrar o evento no log de operação.
-            // Autor: Fabrício
-            // Revisor: Julia
-            // ============================================================================
+        // ============================================================================
+        // REQ: GSE-LLR-20 – Botão “Selecionar Imagem” (Escolha de Arquivo)
+        // Tipo: Requisito Funcional
+        // Descrição: A página de upload deve conter um botão rotulado “Selecionar Imagem”,
+        // posicionado na mesma linha dos botões de ação logo abaixo da barra de progresso.
+        // Esse botão deve abrir uma janela do sistema operacional que permita ao operador
+        // escolher o arquivo de imagem a ser carregado. O estilo visual deve seguir o
+        // padrão da Embraer, com fundo azul (#0067B1), variação azul-claro (#017CD4) ao
+        // pressionar, e texto branco centralizado.
+        // Autor: Fabrício
+        // Revisor: Julia
+        // ============================================================================
             Button {
                 id: btnSelecionarImagem
                 text: qsTr("Selecionar Imagem")
@@ -384,16 +493,19 @@ Item {
                 onClicked: fileDialog.open()
             }
 
-            // ============================================================================
-            // REQ: GSE-LLR-22 – Botão “Sair” (Encerrar Aplicação)
-            // Tipo: Requisito Funcional
-            // Descrição: A página de upload deve conter um botão rotulado “Sair”, posicionado
-            // na mesma linha dos demais botões de ação. Esse botão deve permitir ao operador
-            // encerrar o software GSE de forma segura e controlada, retornando à tela de login
-            // ou fechando a aplicação conforme o contexto operacional.
-            // Autor: Fabrício
-            // Revisor: Julia
-            // ============================================================================
+
+        // ============================================================================
+        // REQ: GSE-LLR-22 – Botão “Sair” (Encerramento da Aplicação)
+        // Tipo: Requisito Funcional
+        // Descrição: A página de upload deve conter um botão rotulado “Sair”,
+        // localizado na mesma linha dos demais botões logo abaixo da barra de
+        // progresso. Esse botão deve permitir ao operador encerrar o software
+        // GSE de forma segura e controlada, seguindo o padrão visual Embraer
+        // com fundo azul (#0067B1), variação azul-claro (#017CD4) ao pressionar
+        // e texto branco centralizado.
+        // Autor: Fabrício
+        // Revisor: Julia
+        // ============================================================================
             Button {
                 id: btnSair
                 text: qsTr("Sair")
@@ -429,13 +541,7 @@ Item {
     // ============================================================================
     // REQ: GSE-LLR-20 – Botão “Selecionar Imagem” (Escolha de Arquivo)
     // Tipo: Requisito Funcional
-    // Rastreabilidade: GSE-HLR-7
-    // Título: Botão “Selecionar Imagem” (Escolha de Arquivo)
-    // Descrição: A página de upload deve conter um botão rotulado “Selecionar Imagem”,
-    // localizado na mesma linha de ações abaixo da barra de progresso. Esse botão deve
-    // abrir uma janela do sistema operacional que permita ao operador selecionar o
-    // arquivo de imagem a ser carregado. Após a seleção, o sistema deve atualizar os
-    // campos correspondentes e registrar o evento no log de operação.
+    // Descrição: Abrir um diálogo do SO para o operador escolher o arquivo de imagem.
     // Autor: Fabrício
     // Revisor: Julia
     // ============================================================================
