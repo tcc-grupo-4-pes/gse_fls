@@ -318,6 +318,19 @@ class UploadController(QObject):
         if not path:
             return
 
+        # VERIFICAÇÃO DE EXTENSÃO
+        # Pega a extensão do arquivo (ex: '.bin')
+        _, file_extension = os.path.splitext(path)
+        
+        # Converte para minúsculas para garantir que a verificação seja insensível a maiúsculas/minúsculas
+        if file_extension.lower() != '.bin':
+            error_msg = f"[ERRO] Formato de arquivo não suportado. Esperado: .bin, Recebido: {file_extension}"
+            self._log_handler(error_msg)
+            # Você pode querer emitir um sinal de erro ou mostrar uma mensagem ao usuário aqui, se necessário.
+            self.fileDetailsReady.emit("", error_msg) # Exemplo de como lidar com a falha
+            return
+        # FIM DA VERIFICAÇÃO DE EXTENSÃO
+
         # GSE-LLR-175 (try block)
         try:
             # GSE-LLR-171
