@@ -12,7 +12,10 @@ static void state_error_enter(void)
 
 static fsm_state_t state_error_run(void)
 {
+    /* BC-LLR-105 Exclusão do arquivo temporário quando em erro
+    No estado ERROR, o software deve excluir o arquivo temp.bin da memória flash caso ele exista */
     unlink(TEMP_FILE_PATH);
+    
     ESP_LOGE(TAG, "SISTEMA EM ESTADO DE ERRO - EXECUÇÃO INTERROMPIDA");
 
     // Para o funcionamento do ESP

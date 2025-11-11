@@ -114,7 +114,9 @@ void handle_rrq(int sock, struct sockaddr_in *client, char *filename)
         {
             break;
         }
-
+        /* BC-LLR-29 Retransmissão de pacotes TFTP
+        Em caso de ACK não recebido ao enviar um pacote, 
+        o software do B/C deve retransmitir o pacote somente 1 vez */
         if ((errno == EAGAIN || errno == EWOULDBLOCK) && retries < TFTP_RETRY_LIMIT)
         {
             retries++;
@@ -309,7 +311,7 @@ void make_wrq(int sock, struct sockaddr_in *client_addr, const char *lus_filenam
         {
             break;
         }
-
+        /* BC-LLR-29 */
         if ((errno == EAGAIN || errno == EWOULDBLOCK) && retries < TFTP_RETRY_LIMIT)
         {
             retries++;
