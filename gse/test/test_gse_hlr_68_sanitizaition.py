@@ -42,7 +42,7 @@ def tftp_client():
 
 
 def test_gse_hlr_68_remove_path_segments():
-    """Critério 1 – remove diretórios e limpa segmentos '..'."""
+    """remove diretórios e limpa segmentos '..'."""
     # Testa sanitização de nome de arquivo com path traversal
     sanitized = TFTPClient._sanitize_filename("..\\etc/passwd")
     
@@ -60,7 +60,7 @@ def test_gse_hlr_68_remove_path_segments():
     ],
 )
 def test_gse_hlr_68_replace_invalid_characters(raw_name, expected):
-    """Critério 2 – substitui caracteres fora da whitelist por '_'."""
+    """substitui caracteres fora da whitelist por '_'."""
     # Testa sanitização de caracteres inválidos em nomes de arquivo
     sanitized = TFTPClient._sanitize_filename(raw_name)
     
@@ -69,14 +69,14 @@ def test_gse_hlr_68_replace_invalid_characters(raw_name, expected):
 
 
 def test_gse_hlr_68_rejects_dotdot_sequence():
-    """Critério 1 – rejeita nomes ainda contendo '..' após limpeza inicial."""
+    """rejeita nomes ainda contendo '..' após limpeza inicial."""
     # Testa se rejeita sequência '..' que permanece após sanitização
     with pytest.raises(ValueError):
         TFTPClient._sanitize_filename("firmware..bin")
 
 
 def test_gse_hlr_68_rrq_uses_sanitized_name(tftp_client):
-    """Critério 3 – RRQ deve serializar apenas o filename sanitizado."""
+    """RRQ deve serializar apenas o filename sanitizado."""
     # Envia uma requisição RRQ com nome de arquivo malicioso
     tftp_client._send_rrq("../payloads/firmware?.bin", "octet", ("10.0.0.2", 69))
 
@@ -92,7 +92,7 @@ def test_gse_hlr_68_rrq_uses_sanitized_name(tftp_client):
 
 
 def test_gse_hlr_68_wrq_uses_sanitized_name(tftp_client):
-    """Critério 3 – WRQ aplica o mesmo sanitizador antes do envio."""
+    """WRQ aplica o mesmo sanitizador antes do envio."""
     # Envia uma requisição WRQ com nome de arquivo malicioso
     tftp_client._send_wrq("..\\bad\\firmware.bin", "octet", ("10.0.0.2", 69))
 
