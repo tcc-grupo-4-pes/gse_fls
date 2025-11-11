@@ -11,8 +11,8 @@
 #define BC_KEY_SIZE 32
 #define GSE_KEY_SIZE 32
 
-#define BC_KEY_FILE "/keys/bc_key.bin"/* BC-LLR-50  */
-#define GSE_KEY_FILE "/keys/gse_key.bin"/* BC-LLR-50  */
+#define BC_KEY_FILE "/keys/bc_key.bin"   /* BC-LLR-50  */
+#define GSE_KEY_FILE "/keys/gse_key.bin" /* BC-LLR-50  */
 
 // Estrutura para armazenar chaves na memória
 typedef struct
@@ -38,5 +38,7 @@ bool auth_is_authenticated(void);
 
 // Função para resetar estado de autenticação
 void auth_reset_authentication(void);
+
+void auth_set_authenticated_for_test(bool value);
 
 #endif // AUTH_H

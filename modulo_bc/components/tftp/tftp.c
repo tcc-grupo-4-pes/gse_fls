@@ -15,6 +15,7 @@
 #include "freertos/task.h" // vTaskDelay
 #include <stdbool.h>
 
+#define MIN_AVAILABLE_SPACE 500000 // Para evitar Page Fault
 static const char *TAG = "tftp";
 
 void handle_rrq(int sock, struct sockaddr_in *client, char *filename)
@@ -481,10 +482,9 @@ void make_rrq(int sock, struct sockaddr_in *client_addr, const char *filename, u
            recebido de firmware, o software deve fechar o arquivo temporário,
            parar o cálculo contínuo do SHA256, ir para estado ERROR e parar execução da tarefa
         */
-        if (available < (size_t)data_len)
+        if (available < MIN_AVAILABLE_SPACE)
         {
-            ESP_LOGE(TAG, "Espaço insuficiente na partição! Necessário=%d, Disponível=%u",
-                     data_len, (unsigned)available);
+            ESP_LOGE(TAG, "Espaço insuficiente na partição!");
             fclose(temp_file);
             mbedtls_sha256_free(&sha_ctx);
             return;

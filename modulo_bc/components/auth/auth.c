@@ -59,12 +59,12 @@ esp_err_t auth_write_static_keys(void)
 }
 
 esp_err_t auth_load_keys(auth_keys_t *keys)
-{   
+{
     /* BC-LLR-80 - Validação de Ponteiro de Estrutura de Chaves
     No modo MAINT_WAIT, antes de carregar as chaves de autenticação da partição SPIFFS,
-    o sistema deve validar se o ponteiro para a estrutura de destino é válido (não nulo). 
-    Em caso de ponteiro inválido, o sistema deve registrar erro crítico 
-    e retornar código de erro ESP_ERR_INVALID_ARG  0x102, 
+    o sistema deve validar se o ponteiro para a estrutura de destino é válido (não nulo).
+    Em caso de ponteiro inválido, o sistema deve registrar erro crítico
+    e retornar código de erro ESP_ERR_INVALID_ARG  0x102,
     evitando acesso inválido à memória e falha de segmentação.
     */
     if (!keys)
@@ -78,7 +78,7 @@ esp_err_t auth_load_keys(auth_keys_t *keys)
     FILE *bc_file = fopen(BC_KEY_FILE, "rb");
     /* BC-LLR-81 - Validação de Abertura de Arquivo de Chave BC
     No modo MAINT_WAIT, caso ocorra erro ao abrir o arquivo /keys/bc_key.bin
-    em modo leitura binária, o B/C deve registrar erro e retornar o erro 
+    em modo leitura binária, o B/C deve registrar erro e retornar o erro
     ESP_FAIL -1
     */
     if (!bc_file)
@@ -89,7 +89,7 @@ esp_err_t auth_load_keys(auth_keys_t *keys)
 
     /* BC-LLR-82 - Validação de Leitura de Chave BC
     No modo MAINT_WAIT, após abrir o arquivo /keys/bc_key.bin, o B/C deve
-    ler exatamente 32 bytes para o buffer de chave BC. Caso a leitura 
+    ler exatamente 32 bytes para o buffer de chave BC. Caso a leitura
     retorne quantidade diferente de 32 bytes, o B/C deve registrar erro,
     fechar o arquivo e retornar o erro ESP_FAIL -1
     */
@@ -103,7 +103,7 @@ esp_err_t auth_load_keys(auth_keys_t *keys)
 
     /* BC-LLR-83 - Validação de Abertura de Arquivo de Chave GSE
     No modo MAINT_WAIT, caso ocorra erro ao abrir o arquivo /keys/gse_key.bin
-    em modo leitura binária, o B/C deve registrar erro e retornar o erro 
+    em modo leitura binária, o B/C deve registrar erro e retornar o erro
     ESP_FAIL -1
     */
     FILE *gse_file = fopen(GSE_KEY_FILE, "rb");
@@ -115,7 +115,7 @@ esp_err_t auth_load_keys(auth_keys_t *keys)
 
     /* BC-LLR-84 - Validação de Leitura de Chave GSE
     No modo MAINT_WAIT, após abrir o arquivo /keys/gse_key.bin, o B/C deve
-    ler exatamente 32 bytes para o buffer de chave GSE. Caso a leitura 
+    ler exatamente 32 bytes para o buffer de chave GSE. Caso a leitura
     retorne quantidade diferente de 32 bytes, o B/C deve registrar erro,
     fechar o arquivo e retornar o erro ESP_FAIL -1
     */
@@ -131,8 +131,8 @@ esp_err_t auth_load_keys(auth_keys_t *keys)
     return ESP_OK;
 }
 
-/* BC-LLR-20 Limpeza do buffer da chave pré-compartilhada 
-O software do módulo B/C deve apagar o buffer onde as chaves do B/C 
+/* BC-LLR-20 Limpeza do buffer da chave pré-compartilhada
+O software do módulo B/C deve apagar o buffer onde as chaves do B/C
 e o GSE foram carregadas para comparação após autenticação
 */
 void auth_clear_keys(auth_keys_t *keys)
@@ -147,8 +147,8 @@ void auth_clear_keys(auth_keys_t *keys)
 esp_err_t auth_perform_handshake(int sock, struct sockaddr_in *client_addr, auth_keys_t *keys)
 {
     /* BC-LLR-10 - Autenticação de Aplicação Embraer - GSE
-    O software do B/C, no estado MAINT_WAIT após abertura do socket, deve receber uma chave 
-    de autenticação do GSE e compara com a chave de autenticação embarcada para autenticar GSE 
+    O software do B/C, no estado MAINT_WAIT após abertura do socket, deve receber uma chave
+    de autenticação do GSE e compara com a chave de autenticação embarcada para autenticar GSE
     como aplicação Embraer
     */
     socklen_t addr_len = sizeof(*client_addr);
@@ -167,7 +167,7 @@ esp_err_t auth_perform_handshake(int sock, struct sockaddr_in *client_addr, auth
                 return ESP_ERR_TIMEOUT;
             }
             /*BC-LLR-91 - Falha na autenticação do GSE
-            Caso haja erro ao receber e validar chave de autenticação do GSE, o software deve ir 
+            Caso haja erro ao receber e validar chave de autenticação do GSE, o software deve ir
             para o estado ERROR e parar execução pois aplicação GSE não autenticada*/
             ESP_LOGE(TAG, "Erro ao receber chave do GSE: errno=%d", errno);
             return ESP_FAIL;
@@ -175,9 +175,8 @@ esp_err_t auth_perform_handshake(int sock, struct sockaddr_in *client_addr, auth
 
         ESP_LOGI(TAG, "Iniciando handshake de autenticação");
 
-    
         /* BC-LLR-18*/
-        if (ntohs(packet.opcode) != OP_DATA)/*BC-LLR-89*/
+        if (ntohs(packet.opcode) != OP_DATA) /*BC-LLR-89*/
         {
             ESP_LOGW(TAG, "Pacote recebido não é DATA (opcode=%d), ignorando", ntohs(packet.opcode));
             continue;
@@ -187,7 +186,7 @@ esp_err_t auth_perform_handshake(int sock, struct sockaddr_in *client_addr, auth
         if (memcmp(packet.data.data, keys->gse_verify_key, GSE_KEY_SIZE) != 0)
         {
             /*BC-LLR-19 - Erro de autenticação de aplicação Embraer
-            No estado MAINT_WAIT caso a chave de autenticação seja diferente da chave embarcada, 
+            No estado MAINT_WAIT caso a chave de autenticação seja diferente da chave embarcada,
             o software deve ir para o estado de ERROR e parar a execução da tarefa*/
             ESP_LOGE(TAG, "Chave GSE inválida - autenticação falhou");
             return ESP_FAIL;
@@ -203,7 +202,7 @@ esp_err_t auth_perform_handshake(int sock, struct sockaddr_in *client_addr, auth
     ack.opcode = htons(OP_ACK); /* BC-LLR-90 */
     ack.block = packet.data.block;
 
-    if (sendto(sock, &ack, 4, 0, (struct sockaddr *)client_addr, addr_len) < 0)/* BC-LLR-28 */
+    if (sendto(sock, &ack, 4, 0, (struct sockaddr *)client_addr, addr_len) < 0) /* BC-LLR-28 */
     {
         /* BC-LLR-92 - Erro no envio do ACK
         Em caso de erro no envio do ACK, o software deve ir para estado ERROR e parar execução*/
@@ -211,14 +210,13 @@ esp_err_t auth_perform_handshake(int sock, struct sockaddr_in *client_addr, auth
         return ESP_FAIL;
     }
 
-
     /*BC-LLR-11 - Autenticação de Aplicação Embraer - B/C
-    O software do B/C, no estado MAINT_WAIT após validação da chave do GSE, deve enviar outra 
+    O software do B/C, no estado MAINT_WAIT após validação da chave do GSE, deve enviar outra
     chave atestando aplicação Embraer para o GSE completando o handshake de autenticação*/
     ESP_LOGI(TAG, "Enviando chave do BC...");
 
     tftp_packet_t bc_key_packet;
-    bc_key_packet.opcode = htons(OP_DATA);/* BC-LLR-90 */
+    bc_key_packet.opcode = htons(OP_DATA); /* BC-LLR-90 */
     bc_key_packet.data.block = htons(1);
     memcpy(bc_key_packet.data.data, keys->bc_auth_key, BC_KEY_SIZE);
 
@@ -233,7 +231,6 @@ esp_err_t auth_perform_handshake(int sock, struct sockaddr_in *client_addr, auth
         return ESP_FAIL;
     }
 
-
     ESP_LOGI(TAG, "Aguardando confirmação da chave BC...");
     /* BC-LLR-27 */
     ssize_t recv_len = recvfrom(sock, &packet, sizeof(packet), 0,
@@ -246,7 +243,7 @@ esp_err_t auth_perform_handshake(int sock, struct sockaddr_in *client_addr, auth
         {
             return ESP_ERR_TIMEOUT;
         }
-        /*BC-LLR-93 
+        /*BC-LLR-93
         Caso haja erro ao enviar chave de autenticação do B/C,
         o software deve ir para o estado ERROR e parar execução
         */
@@ -265,7 +262,6 @@ esp_err_t auth_perform_handshake(int sock, struct sockaddr_in *client_addr, auth
     ESP_LOGI(TAG, "Handshake de autenticação concluído com sucesso");
     authenticated = true;
     return ESP_OK;
-
 }
 
 bool auth_is_authenticated(void)
@@ -277,4 +273,9 @@ void auth_reset_authentication(void)
 {
     ESP_LOGI(TAG, "Resetando estado de autenticação");
     authenticated = false;
+}
+
+void auth_set_authenticated_for_test(bool value)
+{
+    authenticated = value;
 }
