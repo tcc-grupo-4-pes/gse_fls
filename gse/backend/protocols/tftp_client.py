@@ -744,6 +744,8 @@ class TFTPClient:
     # ============================================================================
     def _send_rrq(self, filename: str, mode: str, addr: Tuple[str, int]):
         filename = self._sanitize_filename(filename)
+        # Garantir que o modo de transferência seja sempre 'octet' (binário)
+        mode = "octet"
         pkt = struct.pack("!H", TFTP_OPCODE.RRQ.value)
         pkt += filename.encode() + b"\0"
         pkt += mode.encode() + b"\0"
@@ -758,6 +760,8 @@ class TFTPClient:
     # ============================================================================
     def _send_wrq(self, filename: str, mode: str, addr: Tuple[str, int]):
         filename = self._sanitize_filename(filename)
+        # Garantir que o modo de transferência seja sempre 'octet' (binário)
+        mode = "octet"
         pkt = struct.pack("!H", TFTP_OPCODE.WRQ.value)
         pkt += filename.encode() + b"\0"
         pkt += mode.encode() + b"\0"
