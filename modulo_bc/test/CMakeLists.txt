@@ -8,9 +8,9 @@ set(EXTRA_COMPONENT_DIRS "../components")
 # Set the components to include the tests for.
 # This can be overriden from CMake cache:
 # - when invoking CMake directly: cmake -D TEST_COMPONENTS="xxxxx" ..
-# - when using idf.py: idf.py -T xxxxx build
+# - when using idf.py: idf.py -DTEST_COMPONENTS=xxxxx build
 #
-set(TEST_COMPONENTS "auth;state_machine" CACHE STRING "Components to include tests for")
+set(TEST_COMPONENTS "auth;state_machine;tftp" CACHE STRING "Components to include tests for")
 
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 project(unit_test_auth)

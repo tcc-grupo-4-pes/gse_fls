@@ -6,7 +6,7 @@
 
 void app_main(void)
 {
-    printf("Iniciando testes do componente auth e state_machine...\n");
+    printf("Iniciando testes dos componentes auth, state_machine e tftp...\n");
 
     // Desativa o watchdog para evitar reset durante o menu interativo do Unity
     esp_task_wdt_deinit();
