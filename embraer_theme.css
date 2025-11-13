@@ -339,3 +339,98 @@ html {
 .tablist li {
     border-right: 1px solid #d8dee9 !important;
 }
+
+/* ============================================================================
+   FORÇANDO FUNDO CLARO E TEXTO ESCURO NO CONTEÚDO
+   ========================================================================== */
+
+/* fundo geral do site */
+body {
+    background-color: #f2f4f8 !important;
+    color: #1f2933 !important;
+}
+
+/* área principal de documentação */
+#doc-content, div.contents {
+    background-color: #ffffff !important;
+    color: #1f2933 !important;
+}
+
+/* título grande da página ("GSE FLS PES 2025 Documentação") */
+div.header, div.header .title {
+    background-color: #ffffff !important;
+    color: #0067B1 !important;
+}
+
+/* ============================================================================
+   ABAS SUPERIORES: Página Principal / Namespaces / Classes / Arquivos
+   ========================================================================== */
+
+/* container das abas */
+#navrow1, #navrow2, .tabs {
+    background-color: #ffffff !important;
+    border-bottom: 2px solid #c5cedb !important;
+    padding: 0 !important;
+}
+
+/* lista de abas */
+#navrow1 ul.tablist,
+#navrow2 ul.tablist,
+.tabs ul.tablist {
+    margin: 0 !important;
+    padding: 0 !important;
+}
+
+/* cada aba */
+#navrow1 ul.tablist li,
+#navrow2 ul.tablist li,
+.tabs ul.tablist li {
+    display: inline-block;
+    margin: 0;
+    border-right: 1px solid #e2e8f0;
+}
+
+/* links das abas (texto "Página Principal", etc.) */
+#navrow1 ul.tablist li a,
+#navrow2 ul.tablist li a,
+.tabs ul.tablist li a {
+    display: inline-block;
+    padding: 8px 14px;
+    background-color: #ffffff !important;
+    color: #0067B1 !important;  /* azul Embraer */
+    text-decoration: none;
+    font-weight: 500;
+    transition: 0.2s;
+}
+
+/* span interno (algumas versões do Doxygen usam <span> dentro do <a>) */
+#navrow1 ul.tablist li a span,
+#navrow2 ul.tablist li a span,
+.tabs ul.tablist li a span {
+    color: inherit !important;
+}
+
+/* hover: fundo azul clarinho + texto azul */
+#navrow1 ul.tablist li a:hover,
+#navrow2 ul.tablist li a:hover,
+.tabs ul.tablist li a:hover {
+    background-color: #eaf4ff !important;
+    color: #0067B1 !important;
+}
+
+/* aba selecionada (current) */
+#navrow1 ul.tablist li.current a,
+#navrow2 ul.tablist li.current a,
+.tabs ul.tablist li.current a {
+    background-color: #0067B1 !important; /* azul Embraer */
+    color: #ffffff !important;            /* texto branco */
+    font-weight: 600;
+    border-bottom: 2px solid #004b84 !important;
+}
+
+/* o span dentro da aba selecionada também branco */
+#navrow1 ul.tablist li.current a span,
+#navrow2 ul.tablist li.current a span,
+.tabs ul.tablist li.current a span {
+    color: #ffffff !important;
+}
