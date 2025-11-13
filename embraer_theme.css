@@ -1,51 +1,23 @@
-/* Fundo da barra superior */
+/* Azul oficial do ícone */
+:root {
+    --embraer-blue: #1975B8;
+}
+
+/* Barra de título */
 div#titlearea {
-    background-color: #003A70; /* azul Embraer aproximado */
+    background-color: var(--embraer-blue);
 }
 
-/* Título do projeto */
+/* Título */
 div#projectname {
-    color: #ffffff;
-    font-weight: 600;
+    color: white;
 }
 
-/* Subtítulo / brief */
-div#projectbrief {
-    color: #e0e0e0;
-}
-
-/* Fundo da página */
-body {
-    background-color: #f5f7fa;
-}
-
-/* Caixa de conteúdo principal */
-div.contents, div.header, div.navpath {
-    background-color: #ffffff;
-}
-
-/* Links padrão */
+/* Links */
 a, a.el {
-    color: #003A70;
+    color: var(--embraer-blue);
 }
 
-/* Links ao passar o mouse */
-a:hover, a.el:hover {
-    color: #0072CE; /* azul mais claro */
-}
-
-/* Menus da esquerda / topo (dependendo do layout) */
-div.navpath ul li, div.navpath ul li a {
-    background-color: #003A70;
-    color: #ffffff;
-}
-
-/* Tabelas (ex: listas de funções, arquivos etc.) */
-table.directory, table.memberdecls, table.doxtable {
-    border-color: #003A70;
-}
-
-table.directory th, table.memberdecls th, table.doxtable th {
-    background-color: #003A70;
-    color: #ffffff;
+a:hover {
+    color: #48A7E6; /* tom mais claro opcional */
 }
