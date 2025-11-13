@@ -1,3 +1,17 @@
+/**
+ * @file arinc.c
+ * @brief Implementação das funções do protocolo ARINC 615A
+ *
+ * Este arquivo implementa as funções para inicialização e parsing de estruturas
+ * de dados do protocolo ARINC 615A (LUI, LUS, LUR) utilizadas na comunicação
+ * entre o GSE e o módulo B/C durante o processo de carregamento de firmware.
+ *
+ * Todas as estruturas são serializadas em network byte order (big-endian) para
+ * garantir compatibilidade com diferentes arquiteturas.
+ *
+ * @note Requisitos implementados: BC-LLR-24, BC-LLR-33, BC-LLR-52, BC-LLR-89, BC-LLR-90
+ */
+
 #include "arinc.h"
 
 #include <string.h>    // memset, memcpy, strlen
@@ -7,6 +21,26 @@
 
 static const char *TAG = "arinc";
 
+/**
+ * @brief Inicializa estrutura LUI com código de status e descrição
+ *
+ * Preenche todos os campos da estrutura LUI incluindo:
+ * - Tamanho total do arquivo
+ * - Versão do protocolo (A4)
+ * - Código de status da operação
+ * - Descrição textual do status
+ *
+ * Os campos numéricos são convertidos para network byte order.
+ *
+ * @param[out] lui Ponteiro para estrutura LUI a ser inicializada
+ * @param[in] status_code Código de status ARINC da operação
+ * @param[in] description String descritiva do status (será truncada se > 255 caracteres)
+ * @return 0 em sucesso, -1 se parâmetros forem inválidos (NULL)
+ *
+ * @note BC-LLR-52: Validação de parâmetros de entrada
+ * @note BC-LLR-24: Inicialização com zeragem da estrutura
+ * @note BC-LLR-90: Conversão para network byte order
+ */
 int init_lui(lui_data_t *lui, arinc_op_status_code_t status_code, const char *description)
 {
     /* BC-LLR-52 */
@@ -42,6 +76,29 @@ int init_lui(lui_data_t *lui, arinc_op_status_code_t status_code, const char *de
     return 0;
 }
 
+/**
+ * @brief Inicializa estrutura LUS com informações de progresso da operação
+ *
+ * Preenche todos os campos da estrutura LUS incluindo:
+ * - Tamanho total do arquivo
+ * - Versão do protocolo (A4)
+ * - Código de status da operação
+ * - Descrição textual do status
+ * - Contador de operação
+ * - Timers de exceção (zerados)
+ * - Razão de progresso (3 caracteres ASCII: "000" a "100")
+ *
+ * Os campos numéricos são convertidos para network byte order.
+ *
+ * @param[out] lus Ponteiro para estrutura LUS a ser inicializada
+ * @param[in] status_code Código de status ARINC da operação
+ * @param[in] description String descritiva do status (será truncada se > 255 caracteres)
+ * @param[in] counter Contador incremental da operação
+ * @param[in] ratio String com exatamente 3 caracteres representando progresso (ex: "050")
+ * @return 0 em sucesso, -1 se parâmetros forem inválidos ou ratio não tiver 3 caracteres
+ *
+ * @note BC-LLR-90: Conversão para network byte order nos campos numéricos
+ */
 int init_lus(lus_data_t *lus, arinc_op_status_code_t status_code,
              const char *description, uint16_t counter, const char *ratio)
 {
@@ -93,15 +150,36 @@ int init_lus(lus_data_t *lus, arinc_op_status_code_t status_code,
     return 0;
 }
 
-/* BC-LLR-33  Campos do .LUR 
-O arquivo .LUR recebido do GSE deve ser preenchido com os seguintes campos: 
-comprimento do .LUR(32 bits), versão de protocolo(16bits - "A4"), 
-número de arquivos a serem recebidos(16bits - no caso apenas 1), 
-comprimento da string do nome do arquivo a ser carregado(8 bits), 
-string do nome do arquivo a ser carregado(até 256 bytes), 
-tamanho da string com PN (8 bits), string com PN(até 256 bytes) 
-
-*/
+/**
+ * @brief Faz parsing de buffer binário contendo arquivo LUR
+ *
+ * Extrai sequencialmente todos os campos do arquivo LUR recebido do GSE:
+ * 1. Comprimento total do arquivo (4 bytes)
+ * 2. Versão do protocolo (2 bytes - deve ser "A4")
+ * 3. Número de arquivos header (2 bytes)
+ * 4. Comprimento do nome do arquivo header (1 byte)
+ * 5. Nome do arquivo header (variável, até 256 bytes)
+ * 6. Comprimento do part number (1 byte)
+ * 7. Part number do software (variável, até 256 bytes)
+ *
+ * Valida tamanhos e converte campos numéricos de network byte order.
+ * Strings são copiadas com null-termination.
+ *
+ * @param[in] buf Buffer contendo dados binários do arquivo LUR
+ * @param[in] len Tamanho do buffer em bytes
+ * @param[out] out Ponteiro para estrutura LUR onde dados serão armazenados
+ * @return 0 em sucesso, -1 se parâmetros inválidos, buffer muito pequeno ou formato incorreto
+ *
+ * @note BC-LLR-33: Campos do .LUR - O arquivo .LUR recebido do GSE deve ser preenchido
+ * com os seguintes campos: comprimento do .LUR (32 bits), versão de protocolo (16bits - "A4"),
+ * número de arquivos a serem recebidos (16bits - no caso apenas 1),
+ * comprimento da string do nome do arquivo a ser carregado (8 bits),
+ * string do nome do arquivo a ser carregado (até 256 bytes),
+ * tamanho da string com PN (8 bits), string com PN (até 256 bytes)
+ *
+ * @note BC-LLR-89: Conversão de network byte order para host byte order
+ * @note BC-LLR-90: Armazenamento em network byte order na estrutura de saída
+ */
 int parse_lur(const uint8_t *buf, size_t len, lur_data_t *out)
 {
     if (!buf || !out || len < 8)

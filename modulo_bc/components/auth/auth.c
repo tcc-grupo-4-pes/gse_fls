@@ -1,3 +1,22 @@
+/**
+ * @file auth.c
+ * @brief Implementação do sistema de autenticação mútua entre GSE e B/C
+ *
+ * Este arquivo implementa o protocolo de autenticação baseado em chaves
+ * pré-compartilhadas armazenadas em partição SPIFFS. O processo envolve:
+ * - Escrita inicial de chaves estáticas na partição (estado INIT)
+ * - Carregamento de chaves da partição para memória (estado MAINT_WAIT)
+ * - Handshake de autenticação mútua via protocolo TFTP
+ * - Limpeza segura de buffers após uso
+ *
+ * A implementação garante que apenas aplicações Embraer autorizadas (GSE)
+ * possam carregar firmware no módulo B/C.
+ *
+ * @note Requisitos implementados: BC-LLR-10, BC-LLR-11, BC-LLR-18, BC-LLR-19,
+ * BC-LLR-20, BC-LLR-27, BC-LLR-28, BC-LLR-80, BC-LLR-81, BC-LLR-82, BC-LLR-83,
+ * BC-LLR-84, BC-LLR-85, BC-LLR-89, BC-LLR-90, BC-LLR-91, BC-LLR-92, BC-LLR-93
+ */
+
 #include "auth.h"
 #include "storage.h"
 #include "tftp.h"
@@ -10,14 +29,27 @@
 
 static const char *TAG = "auth";
 
-// Flag para controlar se já foi autenticado
+/** @brief Flag interna indicando se autenticação foi concluída */
 static bool authenticated = false;
 
-// Chaves estáticas compatíveis com o script de teste GSE
+/** @brief Chave estática do B/C (32 bytes exatos) */
 static const uint8_t BC_STATIC_KEY[BC_KEY_SIZE] = "BC_SECRET_KEY_32_BYTES_EXACTLY!!";
 
+/** @brief Chave esperada do GSE (32 bytes exatos) */
 static const uint8_t GSE_EXPECTED_KEY[GSE_KEY_SIZE] = "GSE_SECRET_KEY_32_BYTES_EXACTLY!";
 
+/**
+ * @brief Escreve chaves estáticas nos arquivos da partição
+ *
+ * Cria/sobrescreve os arquivos bc_key.bin e gse_key.bin na partição /keys
+ * com as chaves pré-definidas. Esta operação deve ocorrer apenas no estado INIT
+ * para inicializar o sistema com chaves conhecidas compatíveis com o GSE.
+ *
+ * @return ESP_OK se ambas as chaves foram escritas com sucesso
+ * @return ESP_FAIL se houver erro ao abrir arquivos ou escrever dados
+ *
+ * @note Função executada apenas no estado INIT
+ */
 esp_err_t auth_write_static_keys(void)
 {
     ESP_LOGI(TAG, "Escrevendo chaves estáticas na partição");
@@ -58,6 +90,20 @@ esp_err_t auth_write_static_keys(void)
     return ESP_OK;
 }
 
+/**
+ * @brief Carrega chaves da partição SPIFFS para estrutura em memória
+ *
+ * Abre e lê os arquivos bc_key.bin e gse_key.bin da partição /keys,
+ * carregando exatamente 32 bytes de cada arquivo para a estrutura fornecida.
+ * Realiza validações em cada etapa do processo conforme requisitos de baixo nível.
+ *
+ * @param[out] keys Ponteiro para estrutura onde chaves serão armazenadas
+ * @return ESP_OK se ambas as chaves foram carregadas com sucesso
+ * @return ESP_ERR_INVALID_ARG se ponteiro keys for NULL
+ * @return ESP_FAIL se houver erro ao abrir arquivos ou ler quantidade incorreta de bytes
+ *
+ * @note Requisitos presentes: BC-LLR-80, BC-LLR-81, BC-LLR-82, BC-LLR-83, BC-LLR-84
+ */
 esp_err_t auth_load_keys(auth_keys_t *keys)
 {
     /* BC-LLR-80 - Validação de Ponteiro de Estrutura de Chaves
@@ -131,10 +177,17 @@ esp_err_t auth_load_keys(auth_keys_t *keys)
     return ESP_OK;
 }
 
-/* BC-LLR-20 Limpeza do buffer da chave pré-compartilhada
-O software do módulo B/C deve apagar o buffer onde as chaves do B/C
-e o GSE foram carregadas para comparação após autenticação
-*/
+/**
+ * @brief Limpa buffers de chaves da memória com zeragem segura
+ *
+ * Sobrescreve todos os bytes da estrutura de chaves com zeros para garantir
+ * que dados sensíveis não permaneçam em memória RAM após conclusão da autenticação.
+ * Esta é uma medida de segurança para minimizar exposição de chaves.
+ *
+ * @param[in,out] keys Ponteiro para estrutura de chaves a ser limpa (pode ser NULL)
+ *
+ * @note Requisitos presentes: BC-LLR-20
+ */
 void auth_clear_keys(auth_keys_t *keys)
 {
     if (keys)
@@ -144,6 +197,29 @@ void auth_clear_keys(auth_keys_t *keys)
     }
 }
 
+/**
+ * @brief Executa handshake completo de autenticação mútua via TFTP
+ *
+ * Implementa o protocolo de autenticação de 4 etapas:
+ * 1. Recebe pacote DATA do GSE contendo chave de autenticação
+ * 2. Valida chave recebida contra chave esperada armazenada
+ * 3. Envia ACK confirmando recebimento e envia pacote DATA com chave do B/C
+ * 4. Aguarda ACK do GSE confirmando validação da chave do B/C
+ *
+ * A função utiliza loop para aguardar pacote DATA correto (ignora outros opcodes)
+ * e trata timeouts de forma apropriada. Em caso de sucesso, marca flag global
+ * de autenticação como true.
+ *
+ * @param[in] sock Socket UDP configurado para comunicação TFTP
+ * @param[in,out] client_addr Estrutura sockaddr_in contendo endereço do cliente GSE
+ * @param[in] keys Estrutura contendo chaves carregadas (bc_auth_key e gse_verify_key)
+ * @return ESP_OK se handshake completado com sucesso
+ * @return ESP_ERR_TIMEOUT se timeout na recepção (errno EAGAIN/EWOULDBLOCK)
+ * @return ESP_FAIL em caso de erro de rede, chave inválida ou formato incorreto
+ *
+ * @note Requisitos presentes: BC-LLR-10, BC-LLR-11, BC-LLR-18, BC-LLR-19, BC-LLR-27, BC-LLR-28, BC-LLR-85,
+ * BC-LLR-89, BC-LLR-90, BC-LLR-91, BC-LLR-92, BC-LLR-93
+ */
 esp_err_t auth_perform_handshake(int sock, struct sockaddr_in *client_addr, auth_keys_t *keys)
 {
     /* BC-LLR-10 - Autenticação de Aplicação Embraer - GSE
@@ -264,17 +340,42 @@ esp_err_t auth_perform_handshake(int sock, struct sockaddr_in *client_addr, auth
     return ESP_OK;
 }
 
+/**
+ * @brief Consulta o estado de autenticação atual
+ *
+ * Retorna o valor da flag interna que indica se o handshake de autenticação
+ * foi concluído com sucesso nesta sessão.
+ *
+ * @return true se sistema está autenticado, false caso contrário
+ */
 bool auth_is_authenticated(void)
 {
     return authenticated;
 }
 
+/**
+ * @brief Reseta flag de autenticação para false
+ *
+ * Limpa o estado de autenticação, forçando que um novo handshake seja
+ * executado na próxima tentativa de comunicação. Utilizado em transições
+ * de estado ou após erros que invalidam a sessão atual.
+ */
 void auth_reset_authentication(void)
 {
     ESP_LOGI(TAG, "Resetando estado de autenticação");
     authenticated = false;
 }
 
+/**
+ * @brief Define estado de autenticação diretamente (somente para testes)
+ *
+ * Permite simular estado autenticado/não-autenticado em ambiente de teste
+ * sem precisar executar o handshake completo. Não deve ser usada em código
+ * de produção.
+ *
+ * @param[in] value true para marcar como autenticado, false para não autenticado
+ * @warning USO EXCLUSIVO PARA TESTES UNITÁRIOS
+ */
 void auth_set_authenticated_for_test(bool value)
 {
     authenticated = value;
