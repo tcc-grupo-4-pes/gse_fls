@@ -8,3 +8,7 @@ FILE_PATTERNS = *.c \
                 *.py
 RECURSIVE = YES
 EXTENSION_MAPPING = py=Python
+PROJECT_NAME = "GSE FLS PES 2025"
+PROJECT_BRIEF = "Simulador de carregamento de FLS"
+PROJECT_LOGO = gse/frontend/images/svg_images/embraer_icon.svg
+HTML_EXTRA_STYLESHEET = embraer_theme.css
