@@ -1,25 +1,25 @@
 /* ============================================================================
-   Tema Embraer Blue para Doxygen
-   Azul principal extraído do ícone: #1975B8 (RGB: 25, 117, 184)
+   Tema Embraer Blue para Doxygen (cor: #0067B1)
+   Foco em bom contraste (sem texto claro em fundo claro, etc.)
    ========================================================================== */
 
 :root {
-    --embraer-blue: #1975B8;
-    --embraer-blue-light: #48A7E6;
-    --embraer-bg: #f5f7fa;
-    --embraer-card-bg: #ffffff;
-    --embraer-border: #d0d4dd;
-    --embraer-text: #222222;
-    --embraer-muted: #666666;
+    --embraer-blue: #0067B1;      /* Azul principal */
+    --embraer-blue-light: #4FA8E3;
+    --embraer-bg: #f2f4f8;        /* Fundo geral levemente cinza */
+    --embraer-card-bg: #ffffff;   /* Cartões / caixas principais */
+    --embraer-border: #c5cedb;    /* Bordas neutras */
+    --embraer-text: #1f2933;      /* Texto principal bem escuro */
+    --embraer-muted: #4b5563;     /* Texto secundário (ainda legível) */
 }
 
-/* Fundo geral da página */
+/* Fundo geral e texto padrão */
 body {
     background-color: var(--embraer-bg);
     color: var(--embraer-text);
 }
 
-/* Remove sombras fortes e deixa tudo mais flat */
+/* Remove sombras pesadas e deixa tudo mais flat */
 div.header,
 div.contents,
 div.navpath,
@@ -40,11 +40,11 @@ div#top {
 div#titlearea {
     background-color: var(--embraer-blue);
     color: #ffffff;
-    border-bottom: 1px solid #0f4f7f;
+    border-bottom: 1px solid #004b84;
     padding: 10px 15px;
 }
 
-/* Título do projeto */
+/* Título do projeto: branco em fundo azul → bom contraste */
 div#projectname {
     color: #ffffff;
     font-weight: 600;
@@ -53,19 +53,19 @@ div#projectname {
     text-transform: uppercase;
 }
 
-/* Subtítulo / brief */
+/* Subtítulo: cinza claro, mas ainda bem legível em fundo azul escuro */
 div#projectbrief {
-    color: #e0e6f0;
+    color: #e2e8f0;
     font-size: 90%;
 }
 
-/* Logo do projeto (se configurado no Doxyfile) */
+/* Logo do projeto */
 #projectlogo img {
     max-height: 48px;
 }
 
 /* ============================================================================
-   Navegação (breadcrumbs, topo, etc.)
+   Breadcrumb / caminho de navegação
    ========================================================================== */
 
 div.navpath {
@@ -83,11 +83,15 @@ div.navpath li {
     background: transparent;
 }
 
+/* Links no breadcrumb: sempre brancos em fundo azul */
 div.navpath a {
-    color: #ffffff;
+    color: #ffffff !important;
 }
 
-/* Menus superiores (dependendo da versão/layout do Doxygen) */
+/* ============================================================================
+   Barras de navegação (menus topo)
+   ========================================================================== */
+
 #navrow1, #navrow2 {
     background-color: #ffffff;
     border-bottom: 1px solid var(--embraer-border);
@@ -95,6 +99,7 @@ div.navpath a {
 
 #navrow1 a, #navrow2 a {
     color: var(--embraer-blue);
+    font-weight: 500;
 }
 
 #navrow1 a:hover, #navrow2 a:hover {
@@ -112,24 +117,27 @@ div.contents {
     margin-top: 10px;
 }
 
-/* Títulos dentro do conteúdo */
+/* Títulos: azul escuro em fundo branco → contraste ok */
 h1, h2, h3, h4 {
     color: var(--embraer-blue);
 }
 
-/* Comentários de detalhes / descrições mais claras */
-.memdoc, .briefdesc, .detaileddesc {
+/* Texto padrão dentro do conteúdo */
+div.contents p,
+div.contents li,
+div.contents td {
     color: var(--embraer-text);
 }
 
-/* Parágrafos auxiliares */
+/* Texto “muted” nunca é muito claro para não sumir em fundo claro */
 .note, .warning, .attention {
     border-left: 4px solid var(--embraer-blue);
     padding-left: 8px;
+    color: var(--embraer-muted);
 }
 
 /* ============================================================================
-   Links
+   Links (em fundo claro)
    ========================================================================== */
 
 a, a.el {
@@ -142,13 +150,19 @@ a:hover, a.el:hover {
     text-decoration: underline;
 }
 
-/* Links de navegação (tipo "Go to the documentation of this file") */
-a.code, a.codeRef {
-    color: var(--embraer-blue);
+/* Links em áreas escuras (ex: blocos de código) */
+div.fragment a,
+pre.fragment a {
+    color: #7fdbff; /* ciano claro sobre fundo escuro */
+}
+
+div.fragment a:hover,
+pre.fragment a:hover {
+    color: #b3ecff;
 }
 
 /* ============================================================================
-   Tabelas (listas de arquivos, classes, etc.)
+   Tabelas (listas de arquivos, classes etc.)
    ========================================================================== */
 
 table.directory,
@@ -158,6 +172,7 @@ table.doxtable {
     border: 1px solid var(--embraer-border);
 }
 
+/* Cabeçalho: azul com texto branco */
 table.directory th,
 table.memberdecls th,
 table.doxtable th {
@@ -166,38 +181,41 @@ table.doxtable th {
     padding: 6px 8px;
 }
 
+/* Células: texto escuro em fundo claro */
 table.directory td,
 table.memberdecls td,
 table.doxtable td {
     border: 1px solid var(--embraer-border);
     padding: 4px 6px;
+    color: var(--embraer-text);
 }
 
-/* Linhas alternadas mais suaves */
+/* Linhas alternadas: um pouco mais escuras, mas ainda bem claras */
 table.directory tr:nth-child(even),
 table.memberdecls tr:nth-child(even),
 table.doxtable tr:nth-child(even) {
-    background-color: #f0f4fa;
+    background-color: #e9edf5;
 }
 
 /* ============================================================================
-   Code blocks, snippets, etc.
+   Blocos de código
    ========================================================================== */
 
 div.fragment, pre.fragment {
-    background-color: #1e2933;
-    color: #e8edf5;
+    background-color: #111827; /* bem escuro */
+    color: #e5e7eb;            /* cinza bem claro */
     border-radius: 4px;
     border: none;
 }
 
+/* Linhas de código */
 div.line {
-    color: #e8edf5;
+    color: #e5e7eb;
 }
 
-/* Números de linha, se habilitados */
+/* Números de linha */
 .lineno {
-    color: #9ca9b8;
+    color: #9ca3af;
 }
 
 /* ============================================================================
@@ -214,7 +232,7 @@ div.line {
 }
 
 #nav-tree .selected {
-    background-color: #e2effc;
+    background-color: #e0f2ff;
 }
 
 #nav-tree a {
@@ -226,7 +244,7 @@ div.line {
 }
 
 /* ============================================================================
-   Caixa de busca (se habilitada)
+   Caixa de busca
    ========================================================================== */
 
 #MSearchBox {
@@ -237,6 +255,7 @@ div.line {
 
 #MSearchField {
     border: none;
+    color: var(--embraer-text);
 }
 
 #MSearchBox span.left {
@@ -244,27 +263,22 @@ div.line {
 }
 
 /* ============================================================================
-   Rodapé
+   Rodapé / nav-path (dependendo da versão)
    ========================================================================== */
 
 #nav-path {
     border-top: none;
 }
 
-.footer {
-    opacity: 0.8;
-}
-
 /* ============================================================================
-   Pequenos ajustes gerais
+   Ajustes gerais
    ========================================================================== */
 
-/* Deixa o scroll mais suave */
 html {
     scroll-behavior: smooth;
 }
 
-/* Espaçamento nas listas de membros */
+/* Espaçamento em listas de membros */
 .memberdecls .memItemLeft,
 .memberdecls .memItemRight {
     padding-top: 4px;
