@@ -23,7 +23,6 @@ static fsm_state_t state_upload_prep_run(void)
         ESP_LOGE(TAG, "Falha ao inicializar LUS inicial");
         return ST_ERROR;
     }
-
     /* BC-LLR-30 Requisição de escrita do primeiro .LUS
     Em UPLOAD_PREP após envio do .LUI, o software do B/C 
     deve criar um arquivo o primeiro arquivo de status de Upload(Load Upload Status - INIT_LOAD.LUS) 

@@ -4,7 +4,7 @@ from PySide6.QtCore import QObject, Slot, Signal
 from PySide6.QtWidgets import QApplication
 from PySide6.QtGui import QGuiApplication, QIcon
 from pathlib import Path
-import json, os, base64, hashlib
+import json, os, base64, hashlib, sys
 
 # =============================================================================
 # REQ: GSE-LLR-27 – Ícone do aplicativo com logotipo da Embraer
@@ -19,13 +19,21 @@ import json, os, base64, hashlib
 # =============================================================================
 def set_application_icon(app: QApplication) -> None:
     """Define o ícone do aplicativo GSE."""
-    icon_path = r"gse\frontend\images\svg_images\embraer_icon.svg"
-
-    if os.path.exists(icon_path):
-        app.setWindowIcon(QIcon(icon_path))
-        print(f"[INFO] Ícone do aplicativo definido: {icon_path}")
+    # Determina o diretório base do aplicativo
+    if getattr(sys, 'frozen', False):
+        # Rodando como executável empacotado pelo PyInstaller
+        base_path = Path(sys._MEIPASS)
     else:
-        print(f"[AVISO] Ícone não encontrado em: {icon_path}")
+        # Rodando em modo de desenvolvimento
+        base_path = Path(__file__).resolve().parent.parent.parent
+    
+    icon_path = base_path / "frontend" / "images" / "svg_images" / "embraer_icon.svg"
+
+    if icon_path.exists():
+        app.setWindowIcon(QIcon(str(icon_path)))
+        print(f"[INFO] Ícone do aplicativo definido: {icon_path.name}")
+    else:
+        print(f"[AVISO] Ícone não encontrado. Base: {base_path}, Procurando: embraer_icon.svg")
 
 
 class BackendController(QObject):

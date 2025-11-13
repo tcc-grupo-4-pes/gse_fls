@@ -1,5 +1,8 @@
 #include "state_machine/fsm.h"
 #include "esp_log.h"
+#include "storage.h"
+#include <errno.h>
+#include <unistd.h> // unlink
 
 static const char *TAG = "STATE_ERROR";
 
@@ -10,6 +13,15 @@ static void state_error_enter(void)
 
 static fsm_state_t state_error_run(void)
 {
+    /* BC-LLR-105 Exclusão do arquivo temporário quando em erro
+    No estado ERROR, o software deve excluir o arquivo temp.bin da memória flash caso ele exista */
+    int rc = unlink(TEMP_FILE_PATH);
+    if (rc == 0) {
+        ESP_LOGI(TAG, "Firmware temporario removido: %s", TEMP_FILE_PATH);
+    } else {
+        ESP_LOGW(TAG, "Nao foi possivel remover %s (errno=%d)", TEMP_FILE_PATH, errno);
+    }
+    
     ESP_LOGE(TAG, "SISTEMA EM ESTADO DE ERRO - EXECUÇÃO INTERROMPIDA");
 
     // Para o funcionamento do ESP

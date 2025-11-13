@@ -15,6 +15,7 @@
 #include "freertos/task.h" // vTaskDelay
 #include <stdbool.h>
 
+#define MIN_AVAILABLE_SPACE 500000 // Para evitar Page Fault
 static const char *TAG = "tftp";
 
 void handle_rrq(int sock, struct sockaddr_in *client, char *filename)
@@ -99,14 +100,45 @@ void handle_rrq(int sock, struct sockaddr_in *client, char *filename)
 
     tftp_packet_t ack;
     struct sockaddr_in ack_addr;
-    socklen_t ack_len = sizeof(ack_addr);
+    ssize_t n = -1;
+    int retries = 0;
 
-    /*BC-LLR-27*/
-    ssize_t n = recvfrom(transfer_sock, &ack, sizeof(ack), 0,
-                         (struct sockaddr *)&ack_addr, &ack_len);
+    while (1)
+    {
+        socklen_t ack_len = sizeof(ack_addr);
+        /*BC-LLR-27*/
+        n = recvfrom(transfer_sock, &ack, sizeof(ack), 0,
+                     (struct sockaddr *)&ack_addr, &ack_len);
+
+        if (n >= 0)
+        {
+            break;
+        }
+        /* BC-LLR-29 Retransmissão de pacotes TFTP
+        Em caso de ACK não recebido ao enviar um pacote, 
+        o software do B/C deve retransmitir o pacote somente 1 vez */
+        if ((errno == EAGAIN || errno == EWOULDBLOCK) && retries < TFTP_RETRY_LIMIT)
+        {
+            retries++;
+            ESP_LOGW(TAG, "Timeout aguardando ACK do bloco 1, reenviando LUI (%d/%d)",
+                     retries, TFTP_RETRY_LIMIT);
+            if (sendto(transfer_sock, &pkt, 4 + lui_size, 0,
+                       (struct sockaddr *)client, sizeof(*client)) < 0)
+            {
+                ESP_LOGE(TAG, "Erro ao reenviar LUI: errno=%d", errno);
+                close(transfer_sock);
+                return;
+            }
+            continue;
+        }
+
+        ESP_LOGE(TAG, "Erro ao receber ACK do bloco 1: errno=%d", errno);
+        close(transfer_sock);
+        return;
+    }
 
     /* BC-LLR-89 , BC-LLR-53*/
-    if (n < 0 || ntohs(ack.opcode) != OP_ACK || ntohs(ack.block) != 1)
+    if (ntohs(ack.opcode) != OP_ACK || ntohs(ack.block) != 1)
     {
         ESP_LOGE(TAG, "ACK não recebido ou inválido para bloco 1");
         close(transfer_sock);
@@ -266,10 +298,34 @@ void make_wrq(int sock, struct sockaddr_in *client_addr, const char *lus_filenam
     tftp_packet_t ack;
     struct sockaddr_in ack_addr;
     socklen_t ack_len = sizeof(ack_addr);
+    ssize_t n = -1;
+    int retries = 0;
 
-    if (recvfrom(sock, &ack, sizeof(ack), 0,
-                 (struct sockaddr *)&ack_addr, &ack_len) < 0)
+    size_t wrq_len = strlen(lus_filename) + 8;
+
+    while (1)
     {
+        ack_len = sizeof(ack_addr);
+        if ((n = recvfrom(sock, &ack, sizeof(ack), 0,
+                          (struct sockaddr *)&ack_addr, &ack_len)) >= 0)
+        {
+            break;
+        }
+        /* BC-LLR-29 */
+        if ((errno == EAGAIN || errno == EWOULDBLOCK) && retries < TFTP_RETRY_LIMIT)
+        {
+            retries++;
+            ESP_LOGW(TAG, "Timeout aguardando ACK inicial, reenviando WRQ (%d/%d)",
+                     retries, TFTP_RETRY_LIMIT);
+            if (sendto(sock, &wrq, wrq_len, 0,
+                       (struct sockaddr *)client_addr, sizeof(*client_addr)) < 0)
+            {
+                ESP_LOGE(TAG, "Erro ao reenviar WRQ: errno=%d", errno);
+                return;
+            }
+            continue;
+        }
+
         ESP_LOGE(TAG, "Erro ao receber ACK inicial: errno=%d", errno);
         return;
     }
@@ -300,9 +356,30 @@ void make_wrq(int sock, struct sockaddr_in *client_addr, const char *lus_filenam
         return;
     }
 
-    if (recvfrom(sock, &ack, sizeof(ack), 0,
-                 (struct sockaddr *)&ack_addr, &ack_len) < 0) /*BC-LLR-27*/
+    retries = 0;
+    while (1)
     {
+        ack_len = sizeof(ack_addr);
+        if ((n = recvfrom(sock, &ack, sizeof(ack), 0,
+                          (struct sockaddr *)&ack_addr, &ack_len)) >= 0) /*BC-LLR-27*/
+        {
+            break;
+        }
+
+        if ((errno == EAGAIN || errno == EWOULDBLOCK) && retries < TFTP_RETRY_LIMIT)
+        {
+            retries++;
+            ESP_LOGW(TAG, "Timeout aguardando ACK final, reenviando bloco 1 (%d/%d)",
+                     retries, TFTP_RETRY_LIMIT);
+            if (sendto(sock, &data_pkt, 4 + sizeof(lus_data_t), 0,
+                       (struct sockaddr *)&ack_addr, sizeof(ack_addr)) < 0)
+            {
+                ESP_LOGE(TAG, "Erro ao reenviar dados LUS: errno=%d", errno);
+                return;
+            }
+            continue;
+        }
+
         ESP_LOGE(TAG, "Erro ao receber ACK final: errno=%d", errno);
         return;
     }
@@ -419,14 +496,14 @@ void make_rrq(int sock, struct sockaddr_in *client_addr, const char *filename, u
         ESP_LOGI(TAG, "Bloco %d recebido (%d bytes)", ntohs(data_pkt.data.block), data_len);
 
         /* BC-LLR-103 Compatibilidade do PN de hardware
-        No primeiro pacote de dados do firmware, o software deve verificar se o PN de Hardware 
-        (ler 20 bytes depois do byte 20 do pacote conforme BC-ARTG-11) é compatível com o PN 
+        No primeiro pacote de dados do firmware, o software deve verificar se o PN de Hardware
+        (ler 20 bytes depois do byte 20 do pacote conforme BC-ARTG-11) é compatível com o PN
         do Hardware do módulo
         */
         if (!pn_checked && total_bytes == 0)
         {
             const size_t PN_OFFSET = 20; /* BC-ARTG-11 */
-            const size_t PN_SIZE = 20;  /* BC-ARTG-11 */
+            const size_t PN_SIZE = 20;   /* BC-ARTG-11 */
             if (data_len >= (int)(PN_OFFSET + PN_SIZE))
             {
                 const unsigned char *pn_ptr = (const unsigned char *)data_pkt.data.data + PN_OFFSET;
@@ -435,7 +512,7 @@ void make_rrq(int sock, struct sockaddr_in *client_addr, const char *filename, u
                 if (memcmp(pn_ptr, HW_PN, PN_SIZE) != 0)
                 {
                     /* BC-LLR-104 Erro de compatibilidade do PN de hardware
-                    Ao verificar a compatibilidade do PN-HW no primeiro pacote do firmware, caso o PN de hardware 
+                    Ao verificar a compatibilidade do PN-HW no primeiro pacote do firmware, caso o PN de hardware
                     extraído não seja igual ao do módulo B/C, o software deve fechar a escrita do arquivo temporário,
                     parar o cálculo incremental do SHA256 e retornar indicando falha*/
                     ESP_LOGE(TAG, "PN inválido no firmware recebido. Abortando recebimento.");
@@ -444,7 +521,7 @@ void make_rrq(int sock, struct sockaddr_in *client_addr, const char *filename, u
                     upload_failure_count++;
                     return;
                 }
-                ESP_LOGI(TAG, "PN de hardware verificado com sucesso no primeiro pacote: %s",HW_PN);
+                ESP_LOGI(TAG, "PN de hardware verificado com sucesso no primeiro pacote: %s", HW_PN);
                 pn_checked = true; /* Apenas entra nessa condição no primeiro pacote*/
             }
             else
@@ -481,10 +558,9 @@ void make_rrq(int sock, struct sockaddr_in *client_addr, const char *filename, u
            recebido de firmware, o software deve fechar o arquivo temporário,
            parar o cálculo contínuo do SHA256, ir para estado ERROR e parar execução da tarefa
         */
-        if (available < (size_t)data_len)
+        if (available < MIN_AVAILABLE_SPACE)
         {
-            ESP_LOGE(TAG, "Espaço insuficiente na partição! Necessário=%d, Disponível=%u",
-                     data_len, (unsigned)available);
+            ESP_LOGE(TAG, "Espaço insuficiente na partição!");
             fclose(temp_file);
             mbedtls_sha256_free(&sha_ctx);
             return;
