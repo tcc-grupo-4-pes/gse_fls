@@ -284,3 +284,58 @@ html {
     padding-top: 4px;
     padding-bottom: 4px;
 }
+
+/* ============================================================================
+   Abas do cabeçalho superior (Página Principal, Namespaces, Classes, Arquivos)
+   ========================================================================== */
+
+/* Container das abas */
+#navrow1, #navrow2, .tabs, .tablist {
+    background-color: #ffffff !important;
+    border-bottom: 2px solid #c5cedb !important;
+    padding: 0;
+}
+
+/* Estilo geral dos links das abas */
+#navrow1 a, #navrow2 a,
+.tabs a, .tablist a {
+    display: inline-block;
+    padding: 8px 14px;
+    margin: 0;
+    font-weight: 500;
+    color: #0067B1 !important;        /* Azul Embraer */
+    background-color: #ffffff !important;
+    border: none;
+    border-right: 1px solid #e2e8f0;
+    text-decoration: none;
+    transition: 0.2s;
+}
+
+/* Hover: azul mais claro */
+#navrow1 a:hover, #navrow2 a:hover,
+.tabs a:hover, .tablist a:hover {
+    background-color: #eaf4ff !important; /* Azul bem suave */
+    color: #0067B1 !important;
+}
+
+/* Aba selecionada/ativa */
+#navrow1 .current a,
+#navrow2 .current a,
+.tablist li.current a,
+.tabs a.current {
+    background-color: #0067B1 !important; /* Azul Embraer */
+    color: #ffffff !important;            /* Texto branco */
+    font-weight: 600;
+    border-bottom: 2px solid #004b84 !important;  /* linha de destaque */
+}
+
+/* Remover linhas e sombras antigas */
+#navrow1 td, #navrow2 td {
+    border: none !important;
+    box-shadow: none !important;
+}
+
+/* Ajusta separadores entre abas */
+.tablist li {
+    border-right: 1px solid #d8dee9 !important;
+}
