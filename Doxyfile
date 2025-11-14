@@ -2,7 +2,7 @@ GENERATE_HTML = YES
 OUTPUT_DIRECTORY = docs
 HTML_OUTPUT = html
 OUTPUT_LANGUAGE = Brazilian
-INPUT = .
+INPUT = . README.md
 FILE_PATTERNS = *.c \
                 *.h \
                 *.py
