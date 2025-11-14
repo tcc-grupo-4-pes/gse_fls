@@ -20,7 +20,7 @@ O sistema reproduz o fluxo real de atualização de FLS em aeronaves, permitindo
 - Enviar o arquivo via TCP
 - Acompanhar o processo de recepção, validação e gravação
 
-O fluxo segue princípios inspirados em documentos como ARINC 615A, DO-178C e DO-200B, mantendo foco educacional e demonstrativo.
+O fluxo segue princípios inspirados em documentos como ARINC 615A, DO-178C, mantendo foco educacional e demonstrativo.
 
 ---
 
