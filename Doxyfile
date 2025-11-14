@@ -15,3 +15,5 @@ PROJECT_LOGO = gse/frontend/images/svg_images/embraer_icon.svg
 HTML_EXTRA_STYLESHEET = embraer_theme.css
 
 HTML_COLORSTYLE = LIGHT
+
+USE_MDFILE_AS_MAINPAGE = README.md
