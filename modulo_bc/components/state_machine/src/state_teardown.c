@@ -13,7 +13,9 @@ static fsm_state_t state_teardown_run(void)
 {
     ESP_LOGI(TAG, "RUNNING ST_TEARDOWN");
 
-    // Envio do LUS final
+    /*BC-LLR-106 - Requisição de escrita do último .LUS
+    Em TEARDOWN, o software do B/C deve criar um arquivo do último status de Upload,
+    (Load Upload Status - FINAL.LUS) fazer uma requisição de escrita(WRQ) para envio para GSE */
     lus_data_t final_lus_data;
     if (init_lus(&final_lus_data, ARINC_STATUS_OP_COMPLETED_OK,
                  "Load Completed Successfully", 2, "100") != 0)

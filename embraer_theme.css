@@ -1,0 +1,436 @@
+/* ============================================================================
+   Tema Embraer Blue para Doxygen (cor: #0067B1)
+   Foco em bom contraste (sem texto claro em fundo claro, etc.)
+   ========================================================================== */
+
+:root {
+    --embraer-blue: #0067B1;      /* Azul principal */
+    --embraer-blue-light: #4FA8E3;
+    --embraer-bg: #f2f4f8;        /* Fundo geral levemente cinza */
+    --embraer-card-bg: #ffffff;   /* Cartões / caixas principais */
+    --embraer-border: #c5cedb;    /* Bordas neutras */
+    --embraer-text: #1f2933;      /* Texto principal bem escuro */
+    --embraer-muted: #4b5563;     /* Texto secundário (ainda legível) */
+}
+
+/* Fundo geral e texto padrão */
+body {
+    background-color: var(--embraer-bg);
+    color: var(--embraer-text);
+}
+
+/* Remove sombras pesadas e deixa tudo mais flat */
+div.header,
+div.contents,
+div.navpath,
+#nav-tree,
+#side-nav {
+    box-shadow: none;
+    border-radius: 4px;
+}
+
+/* ============================================================================
+   Barra superior (título do projeto)
+   ========================================================================== */
+
+div#top {
+    background: none;
+}
+
+div#titlearea {
+    background-color: var(--embraer-blue);
+    color: #ffffff;
+    border-bottom: 1px solid #004b84;
+    padding: 10px 15px;
+}
+
+/* Título do projeto: branco em fundo azul → bom contraste */
+div#projectname {
+    color: #ffffff;
+    font-weight: 600;
+    font-size: 150%;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+
+/* Subtítulo: cinza claro, mas ainda bem legível em fundo azul escuro */
+div#projectbrief {
+    color: #e2e8f0;
+    font-size: 90%;
+}
+
+/* Logo do projeto */
+#projectlogo img {
+    max-height: 48px;
+}
+
+/* ============================================================================
+   Breadcrumb / caminho de navegação
+   ========================================================================== */
+
+div.navpath {
+    background-color: var(--embraer-blue);
+    color: #ffffff;
+    border: none;
+    border-radius: 0;
+}
+
+div.navpath ul {
+    padding: 4px 8px;
+}
+
+div.navpath li {
+    background: transparent;
+}
+
+/* Links no breadcrumb: sempre brancos em fundo azul */
+div.navpath a {
+    color: #ffffff !important;
+}
+
+/* ============================================================================
+   Barras de navegação (menus topo)
+   ========================================================================== */
+
+#navrow1, #navrow2 {
+    background-color: #ffffff;
+    border-bottom: 1px solid var(--embraer-border);
+}
+
+#navrow1 a, #navrow2 a {
+    color: var(--embraer-blue);
+    font-weight: 500;
+}
+
+#navrow1 a:hover, #navrow2 a:hover {
+    color: var(--embraer-blue-light);
+}
+
+/* ============================================================================
+   Conteúdo principal
+   ========================================================================== */
+
+div.contents {
+    background-color: var(--embraer-card-bg);
+    border: 1px solid var(--embraer-border);
+    padding: 15px;
+    margin-top: 10px;
+}
+
+/* Títulos: azul escuro em fundo branco → contraste ok */
+h1, h2, h3, h4 {
+    color: var(--embraer-blue);
+}
+
+/* Texto padrão dentro do conteúdo */
+div.contents p,
+div.contents li,
+div.contents td {
+    color: var(--embraer-text);
+}
+
+/* Texto “muted” nunca é muito claro para não sumir em fundo claro */
+.note, .warning, .attention {
+    border-left: 4px solid var(--embraer-blue);
+    padding-left: 8px;
+    color: var(--embraer-muted);
+}
+
+/* ============================================================================
+   Links (em fundo claro)
+   ========================================================================== */
+
+a, a.el {
+    color: var(--embraer-blue);
+    text-decoration: none;
+}
+
+a:hover, a.el:hover {
+    color: var(--embraer-blue-light);
+    text-decoration: underline;
+}
+
+/* Links em áreas escuras (ex: blocos de código) */
+div.fragment a,
+pre.fragment a {
+    color: #7fdbff; /* ciano claro sobre fundo escuro */
+}
+
+div.fragment a:hover,
+pre.fragment a:hover {
+    color: #b3ecff;
+}
+
+/* ============================================================================
+   Tabelas (listas de arquivos, classes etc.)
+   ========================================================================== */
+
+table.directory,
+table.memberdecls,
+table.doxtable {
+    border-collapse: collapse;
+    border: 1px solid var(--embraer-border);
+}
+
+/* Cabeçalho: azul com texto branco */
+table.directory th,
+table.memberdecls th,
+table.doxtable th {
+    background-color: var(--embraer-blue);
+    color: #ffffff;
+    padding: 6px 8px;
+}
+
+/* Células: texto escuro em fundo claro */
+table.directory td,
+table.memberdecls td,
+table.doxtable td {
+    border: 1px solid var(--embraer-border);
+    padding: 4px 6px;
+    color: var(--embraer-text);
+}
+
+/* Linhas alternadas: um pouco mais escuras, mas ainda bem claras */
+table.directory tr:nth-child(even),
+table.memberdecls tr:nth-child(even),
+table.doxtable tr:nth-child(even) {
+    background-color: #e9edf5;
+}
+
+/* ============================================================================
+   Blocos de código
+   ========================================================================== */
+
+div.fragment, pre.fragment {
+    background-color: #111827; /* bem escuro */
+    color: #e5e7eb;            /* cinza bem claro */
+    border-radius: 4px;
+    border: none;
+}
+
+/* Linhas de código */
+div.line {
+    color: #e5e7eb;
+}
+
+/* Números de linha */
+.lineno {
+    color: #9ca3af;
+}
+
+/* ============================================================================
+   Barra lateral / árvore (treeview)
+   ========================================================================== */
+
+#side-nav {
+    background-color: #ffffff;
+    border-right: 1px solid var(--embraer-border);
+}
+
+#nav-tree {
+    background-color: #ffffff;
+}
+
+#nav-tree .selected {
+    background-color: #e0f2ff;
+}
+
+#nav-tree a {
+    color: var(--embraer-text);
+}
+
+#nav-tree a:hover {
+    color: var(--embraer-blue);
+}
+
+/* ============================================================================
+   Caixa de busca
+   ========================================================================== */
+
+#MSearchBox {
+    border: 1px solid var(--embraer-border);
+    border-radius: 4px;
+    background-color: #ffffff;
+}
+
+#MSearchField {
+    border: none;
+    color: var(--embraer-text);
+}
+
+#MSearchBox span.left {
+    background-color: transparent;
+}
+
+/* ============================================================================
+   Rodapé / nav-path (dependendo da versão)
+   ========================================================================== */
+
+#nav-path {
+    border-top: none;
+}
+
+/* ============================================================================
+   Ajustes gerais
+   ========================================================================== */
+
+html {
+    scroll-behavior: smooth;
+}
+
+/* Espaçamento em listas de membros */
+.memberdecls .memItemLeft,
+.memberdecls .memItemRight {
+    padding-top: 4px;
+    padding-bottom: 4px;
+}
+
+/* ============================================================================
+   Abas do cabeçalho superior (Página Principal, Namespaces, Classes, Arquivos)
+   ========================================================================== */
+
+/* Container das abas */
+#navrow1, #navrow2, .tabs, .tablist {
+    background-color: #ffffff !important;
+    border-bottom: 2px solid #c5cedb !important;
+    padding: 0;
+}
+
+/* Estilo geral dos links das abas */
+#navrow1 a, #navrow2 a,
+.tabs a, .tablist a {
+    display: inline-block;
+    padding: 8px 14px;
+    margin: 0;
+    font-weight: 500;
+    color: #0067B1 !important;        /* Azul Embraer */
+    background-color: #ffffff !important;
+    border: none;
+    border-right: 1px solid #e2e8f0;
+    text-decoration: none;
+    transition: 0.2s;
+}
+
+/* Hover: azul mais claro */
+#navrow1 a:hover, #navrow2 a:hover,
+.tabs a:hover, .tablist a:hover {
+    background-color: #eaf4ff !important; /* Azul bem suave */
+    color: #0067B1 !important;
+}
+
+/* Aba selecionada/ativa */
+#navrow1 .current a,
+#navrow2 .current a,
+.tablist li.current a,
+.tabs a.current {
+    background-color: #0067B1 !important; /* Azul Embraer */
+    color: #ffffff !important;            /* Texto branco */
+    font-weight: 600;
+    border-bottom: 2px solid #004b84 !important;  /* linha de destaque */
+}
+
+/* Remover linhas e sombras antigas */
+#navrow1 td, #navrow2 td {
+    border: none !important;
+    box-shadow: none !important;
+}
+
+/* Ajusta separadores entre abas */
+.tablist li {
+    border-right: 1px solid #d8dee9 !important;
+}
+
+/* ============================================================================
+   FORÇANDO FUNDO CLARO E TEXTO ESCURO NO CONTEÚDO
+   ========================================================================== */
+
+/* fundo geral do site */
+body {
+    background-color: #f2f4f8 !important;
+    color: #1f2933 !important;
+}
+
+/* área principal de documentação */
+#doc-content, div.contents {
+    background-color: #ffffff !important;
+    color: #1f2933 !important;
+}
+
+/* título grande da página ("GSE FLS PES 2025 Documentação") */
+div.header, div.header .title {
+    background-color: #ffffff !important;
+    color: #0067B1 !important;
+}
+
+/* ============================================================================
+   ABAS SUPERIORES: Página Principal / Namespaces / Classes / Arquivos
+   ========================================================================== */
+
+/* container das abas */
+#navrow1, #navrow2, .tabs {
+    background-color: #ffffff !important;
+    border-bottom: 2px solid #c5cedb !important;
+    padding: 0 !important;
+}
+
+/* lista de abas */
+#navrow1 ul.tablist,
+#navrow2 ul.tablist,
+.tabs ul.tablist {
+    margin: 0 !important;
+    padding: 0 !important;
+}
+
+/* cada aba */
+#navrow1 ul.tablist li,
+#navrow2 ul.tablist li,
+.tabs ul.tablist li {
+    display: inline-block;
+    margin: 0;
+    border-right: 1px solid #e2e8f0;
+}
+
+/* links das abas (texto "Página Principal", etc.) */
+#navrow1 ul.tablist li a,
+#navrow2 ul.tablist li a,
+.tabs ul.tablist li a {
+    display: inline-block;
+    padding: 8px 14px;
+    background-color: #ffffff !important;
+    color: #0067B1 !important;  /* azul Embraer */
+    text-decoration: none;
+    font-weight: 500;
+    transition: 0.2s;
+}
+
+/* span interno (algumas versões do Doxygen usam <span> dentro do <a>) */
+#navrow1 ul.tablist li a span,
+#navrow2 ul.tablist li a span,
+.tabs ul.tablist li a span {
+    color: inherit !important;
+}
+
+/* hover: fundo azul clarinho + texto azul */
+#navrow1 ul.tablist li a:hover,
+#navrow2 ul.tablist li a:hover,
+.tabs ul.tablist li a:hover {
+    background-color: #eaf4ff !important;
+    color: #0067B1 !important;
+}
+
+/* aba selecionada (current) */
+#navrow1 ul.tablist li.current a,
+#navrow2 ul.tablist li.current a,
+.tabs ul.tablist li.current a {
+    background-color: #0067B1 !important; /* azul Embraer */
+    color: #ffffff !important;            /* texto branco */
+    font-weight: 600;
+    border-bottom: 2px solid #004b84 !important;
+}
+
+/* o span dentro da aba selecionada também branco */
+#navrow1 ul.tablist li.current a span,
+#navrow2 ul.tablist li.current a span,
+.tabs ul.tablist li.current a span {
+    color: #ffffff !important;
+}
