@@ -327,7 +327,7 @@ Item {
     }
 
         // ============================================================================
-        // REQ: GSE-LLR- 197 – Indicador visual de conclusão
+        // REQ: GSE-LLR-197 – Indicador visual de conclusão
         // Tipo: Requisito Funcional
         // Descrição:A interface de upload DEVE exibir um indicador visual à direita da 
         // barra de progresso,mostrando animação de carregamento durante a transferência 
