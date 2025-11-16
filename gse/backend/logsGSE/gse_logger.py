@@ -1,33 +1,47 @@
 #!/usr/bin/env python3
 """
-Módulo de Logger de Sessão do GSE
+\file gse_logger.py
+\brief Módulo responsável pelo gerenciamento de logs de sessão do GSE.
 
-Fornece uma classe 'GseLogger' que gerencia a criação e escrita
-de arquivos de log baseados em sessão.
+\details
+Este módulo fornece a classe \c GseLogger, responsável por criar, escrever
+e gerenciar arquivos de log gerados durante a operação do GSE.  
+Cada instância da classe cria automaticamente um arquivo de log exclusivo,
+com timestamp no nome, dentro do diretório ``logs/``.
 
-Cada instância da classe cria um novo arquivo de log com timestamp
-em um subdiretório 'logs/'.
+O objetivo é fornecer um mecanismo simples e consistente para registrar
+eventos, mensagens de depuração e rastreamento de fluxo durante a execução
+da aplicação.
 """
 
 import os
 import datetime
 from typing import TextIO
 
-# Arquivo para criar logs de sessão do GSE
-
 
 class GseLogger:
     """
-    Gerencia um único arquivo de log para uma sessão de
-    transferência do GSE.
+    \class GseLogger
+    \brief Gerencia um único arquivo de log para uma sessão do GSE.
+
+    \details
+    A classe cria automaticamente o diretório ``logs`` (se ainda não existir)
+    e gera um arquivo de log com um nome baseado em data e hora.  
+    Todos os métodos são seguros quanto a erros e garantem que o GSE não
+    interrompa sua execução caso o log não possa ser criado.
     """
 
     LOG_DIR = "logs"
 
     def __init__(self):
         """
-        Inicializa o logger, cria o diretório de logs (se não existir)
-        e abre o arquivo de log da sessão.
+        \brief Construtor do logger.
+
+        \details
+        Inicializa o logger, cria o diretório de logs (se necessário)
+        e abre o arquivo de log da sessão.  
+        O caminho completo do arquivo criado pode ser recuperado por
+        \ref get_log_path().
         """
         self.log_file: TextIO | None = None
         self.log_path: str = ""
@@ -35,21 +49,22 @@ class GseLogger:
 
     def _init_log_file(self):
         """
-        Cria o diretório e o arquivo de log com timestamp.
+        \brief Inicializa o arquivo de log.
+
+        \details
+        Cria o diretório ``logs`` (caso não exista) e abre um arquivo
+        cujo nome inclui timestamp no formato ``YYYY-MM-DD_HH-MM-SS``.
+        O arquivo é sempre aberto no modo append (``a``), permitindo
+        continuar sessões interrompidas ou acrescentar novas entradas.
         """
         try:
-            # Garante que o diretório 'logs' exista
-            # (path relativo a onde o script está rodando)
             log_dir_path = os.path.abspath(self.LOG_DIR)
             os.makedirs(log_dir_path, exist_ok=True)
 
-            # Gera um nome de arquivo único
             now_str = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
             filename = f"GSE_Sessao_{now_str}.txt"
-
             self.log_path = os.path.join(log_dir_path, filename)
 
-            # Abre o arquivo em modo 'append' (a) com encoding utf-8
             self.log_file = open(self.log_path, "a", encoding="utf-8")
 
             print(f"Sessão de log iniciada. Arquivo: {self.log_path}")
@@ -59,35 +74,52 @@ class GseLogger:
             self.log_file = None
 
     def get_log_path(self) -> str:
-        """Retorna o caminho do arquivo de log atual."""
+        """
+        \brief Retorna o caminho do arquivo de log atual.
+
+        \return Caminho completo do arquivo de log em uso.
+        """
         return self.log_path
 
     def write_log(self, message: str):
         """
-        Escreve uma única mensagem formatada no arquivo de log.
+        \brief Escreve uma mensagem formatada no arquivo de log.
+
+        \details
+        Cada linha é automaticamente prefixada com timestamp incluindo
+        horas, minutos, segundos e milissegundos no formato:
+
+        ``[HH:MM:SS.mmm] Mensagem...``
+
+        \param message Texto da mensagem a ser registrada.
         """
         if not self.log_file:
             print(f"LOG (sem arquivo): {message}")
             return
 
         try:
-            # Adiciona timestamp a cada linha
-            # ex: [10:53:01.123] Mensagem...
             now = datetime.datetime.now()
             timestamp = now.strftime("%H:%M:%S")
-            ms = now.microsecond // 1000  # Pega milissegundos
+            ms = now.microsecond // 1000
 
             formatted_message = f"[{timestamp}.{ms:03d}] {message}\n"
 
             self.log_file.write(formatted_message)
-            self.log_file.flush()  # Garante que o log seja escrito imediatamente
+            self.log_file.flush()
 
         except Exception as e:
             print(f"ERRO CRÍTICO: Falha ao escrever no log: {e}")
 
     def close(self):
         """
-        Fecha o arquivo de log da sessão.
+        \brief Fecha o arquivo de log da sessão.
+
+        \details
+        Antes de encerrar, registra a mensagem de término:
+
+        ``--- SESSÃO GSE FINALIZADA ---``
+
+        Após o fechamento, o atributo \c log_file passa a ser ``None``.
         """
         if self.log_file:
             self.write_log("--- SESSÃO GSE FINALIZADA ---")
