@@ -1,4 +1,22 @@
 #!/usr/bin/env python3
+## @file worker_arinc.py
+#  @brief Worker assíncrono para a transferência ARINC 615A.
+#
+#  @details
+#  Módulo do Worker ARINC 615A.
+#
+#  Define a implementação do worker assíncrono (usando QRunnable) que
+#  executa o processo de upload em uma thread separada, evitando que a GUI
+#  congele. Ele atua como a "cola" entre o `UploadController` (Qt) e a
+#  `Arinc615ASession` (lógica pura), integrando também:
+#    - cliente TFTP (`TFTPClient`)
+#    - verificação de Wi-Fi (`check_wifi_connection`)
+#    - sessão ARINC 615A (`Arinc615ASession`)
+#
+#  Implementa diversos requisitos GSE-LLR-132 a GSE-LLR-150 relacionados
+#  a interface de sinais, execução assíncrona, tratamento de falhas e
+#  limpeza de recursos.
+
 """
 Módulo do Worker ARINC 615A
 
@@ -41,12 +59,29 @@ from backend.protocols.wifi_utils import check_wifi_connection
 # ============================================================================
 class WorkerSignals(QObject):
     """
-    Define os sinais disponíveis para um 'worker' thread.
-    Implementa: GSE-LLR-132, 133, 134, 135
+    @brief Interface de sinais Qt utilizada pelo worker ARINC.
+
+    @details
+    Implementa os requisitos GSE-LLR-132, 133, 134 e 135, fornecendo
+    uma interface de comunicação assíncrona da thread de trabalho para
+    a thread principal da UI.
+
+    Sinais:
+      - log(str): mensagens de log de status/erro.
+      - progress(int): progresso da transferência (0–100).
+      - finished(bool): indica conclusão (True = sucesso, False = falha).
     """
 
+    ## @brief Sinal de log textual.
+    #  @details Emite mensagens de log gerais sobre o estado do worker.
     log = Signal(str)
+
+    ## @brief Sinal de progresso da transferência.
+    #  @details Emite um inteiro de 0 a 100 representando a % concluída.
     progress = Signal(int)
+
+    ## @brief Sinal de conclusão da operação.
+    #  @details Emite True em caso de sucesso e False em caso de falha.
     finished = Signal(bool)
 
 
@@ -60,8 +95,16 @@ class WorkerSignals(QObject):
 # ============================================================================
 class ArincWorker(QRunnable):
     """
-    Worker thread que executa a lógica de transferência ARINC.
-    Implementa: GSE-LLR-136 (através da herança de QRunnable)
+    @brief Worker thread que executa a lógica de transferência ARINC 615A.
+
+    @details
+    Implementa o requisito GSE-LLR-136 ao herdar de QRunnable e encapsular
+    toda a lógica de upload em uma tarefa que pode ser enviada para uma
+    QThreadPool. Esse worker coordena:
+      - verificação de Wi-Fi (SSID esperado)
+      - conexão via TFTP
+      - sessão ARINC 615A (`run_upload_flow`)
+      - emissão de sinais de log, progresso e finalização.
     """
 
     # ============================================================================
@@ -75,7 +118,16 @@ class ArincWorker(QRunnable):
     # ============================================================================
     def __init__(self, ip: str, file_path: str, pn: str, signals: WorkerSignals):
         """
-        Implementa: GSE-LLR-137
+        @brief Construtor do worker ARINC 615A.
+
+        @details
+        Implementa o requisito GSE-LLR-137 ao receber e armazenar os parâmetros
+        necessários para execução do fluxo de upload em uma thread separada.
+
+        @param ip Endereço IP do alvo ARINC/TFTP.
+        @param file_path Caminho do arquivo a ser transferido.
+        @param pn Part Number (PN) associado ao pacote de software.
+        @param signals Instância de WorkerSignals para comunicação com a UI.
         """
         super().__init__()
         self.ip = ip
@@ -152,9 +204,21 @@ class ArincWorker(QRunnable):
     @Slot()
     def run(self):
         """
-        A função principal do worker, executada na QThreadPool.
-        Configura e executa a sessão ARINC 615A.
-        Implementa: GSE-LLR-138 a GSE-LLR-150
+        @brief Função principal do worker executada na QThreadPool.
+
+        @details
+        Implementa os requisitos GSE-LLR-138 a GSE-LLR-150. As responsabilidades
+        principais são:
+          - GSE-LLR-138: emitir log de início.
+          - GSE-LLR-139: definir callbacks locais `logger` e `progress` que
+            redirecionam para `signals.log` e `signals.progress`.
+          - GSE-LLR-140/141: instanciar o cliente TFTP e conectar o socket.
+          - GSE-LLR-142/143: instanciar a sessão ARINC e executar o fluxo de upload.
+          - GSE-LLR-144/148: emitir `finished(True/False)` conforme sucesso ou falha.
+          - GSE-LLR-145–147: encapsular a lógica em bloco try/except,
+            logando erros e (opcionalmente) o traceback.
+          - GSE-LLR-149/150: garantir fechamento do socket e log de encerramento
+            em bloco `finally`.
         """
         # GSE-LLR-138
         self.signals.log.emit(f"[WORKER] Iniciando thread para {self.ip}...")
