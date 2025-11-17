@@ -1,3 +1,13 @@
+/**
+ * @file state_operational.c
+ * @brief Implementação do estado OPERATIONAL da máquina de estados
+ *
+ * Estado que representa o modo normal de operação do B/C.
+ * Monitora o botão de manutenção e transita para MAINT_WAIT quando pressionado.
+ *
+ * @note BC-LLR-4, BC-LLR-5, BC-LLR-72, BC-LLR-79
+ */
+
 #include "state_machine/fsm.h"
 #include "button_handler/button_handler.h"
 #include "esp_log.h"
@@ -7,12 +17,20 @@ static const char *TAG = "STATE_OPERATIONAL";
 // Handle do botão (será inicializado no enter)
 static button_handle_t maint_button = NULL;
 
+/**
+ * @brief Função de entrada do estado OPERATIONAL
+ *
+ * Configura o botão de manutenção (GPIO 0 do ESP32) para detectar
+ * pressão e permitir transição para o modo de manutenção.
+ *
+ * @note BC-LLR-5, BC-LLR-79
+ */
 static void state_operational_enter(void)
 {
     ESP_LOGI(TAG, "INIT ST_OPERATIONAL");
 
-    /* BC-LLR-5 - Configuração botão de manutenção 
-    Na entrada do modo operational, o sistema deve configurar o botão de manutenção para detectar aperto 
+    /* BC-LLR-5 - Configuração botão de manutenção
+    Na entrada do modo operational, o sistema deve configurar o botão de manutenção para detectar aperto
     (transição de solto para pressionado), usando a configuração padrão do botão.*/
     button_config_t button_config = BUTTON_BOOT_DEFAULT_CONFIG();
     esp_err_t ret = button_init(&button_config, &maint_button);
@@ -28,11 +46,23 @@ static void state_operational_enter(void)
     }
 }
 
+/**
+ * @brief Função de execução do estado OPERATIONAL
+ *
+ * Monitora o botão de manutenção e transita para MAINT_WAIT quando pressionado.
+ * Permanece neste estado até que o usuário solicite entrada no modo de manutenção.
+ *
+ * @return Próximo estado da FSM:
+ *         - ST_OPERATIONAL: continua no modo operacional
+ *         - ST_MAINT_WAIT: botão pressionado, entra em modo manutenção
+ *
+ * @note BC-LLR-4
+ */
 static fsm_state_t state_operational_run(void)
 {
     ESP_LOGI(TAG, "RUNNING ST_OPERATIONAL");
     /* BC-LLR-4 - Botão para ir para modo Manutenção
-    Em modo OPERACIONAL, o software do B/C deve mudar para o modo MANUTENÇÃO (estado MAINT_WAIT) 
+    Em modo OPERACIONAL, o software do B/C deve mudar para o modo MANUTENÇÃO (estado MAINT_WAIT)
     se o botão (GPIO 0) do ESP32 for apertado.
     */
     if (maint_button && button_is_pressed(maint_button))
@@ -45,12 +75,20 @@ static fsm_state_t state_operational_run(void)
     return ST_OPERATIONAL;
 }
 
+/**
+ * @brief Função de saída do estado OPERATIONAL
+ *
+ * Libera recursos do botão de manutenção ao sair do modo operacional.
+ * Garante que o botão não influencie o comportamento no modo de manutenção.
+ *
+ * @note BC-LLR-72
+ */
 static void state_operational_exit(void)
 {
     ESP_LOGI(TAG, "EXIT ST_OPERATIONAL");
 
-    /* BC-LLR-72 - Na saída do modo operacional, 
-    o B/C deve liberar todos os recursos associados ao botão de manutenção (GPIO, handlers, memória ) 
+    /* BC-LLR-72 - Na saída do modo operacional,
+    o B/C deve liberar todos os recursos associados ao botão de manutenção (GPIO, handlers, memória )
     para evitar vazamento de recursos e garantir que o botão mão influencie na manutenção */
     if (maint_button)
     {

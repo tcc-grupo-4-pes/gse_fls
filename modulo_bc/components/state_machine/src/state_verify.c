@@ -1,14 +1,41 @@
+/**
+ * @file state_verify.c
+ * @brief Implementação do estado VERIFY da máquina de estados
+ *
+ * Estado que compara o SHA-256 calculado durante o recebimento do firmware
+ * com o SHA-256 esperado enviado pelo GSE para verificar a integridade.
+ *
+ * @note BC-LLR-42, BC-LLR-43, BC-LLR-65, BC-LLR-103
+ */
+
 #include "state_machine/fsm.h"
 #include "esp_log.h"
 #include <string.h>
 #include <storage.h>
 static const char *TAG = "STATE_VERIFY";
 
+/**
+ * @brief Função de entrada do estado VERIFY
+ *
+ * Executa log de entrada no estado (atualmente apenas informação).
+ */
 static void state_verify_enter(void)
 {
     ESP_LOGI(TAG, "INIT ST_VERIFY");
 }
 
+/**
+ * @brief Função de execução do estado VERIFY
+ *
+ * Compara o SHA-256 calculado durante o download do firmware com o SHA-256
+ * esperado recebido do GSE. Valida a integridade do firmware recebido.
+ *
+ * @return Próximo estado da FSM:
+ *         - ST_SAVE: hashes coincidem, firmware íntegro
+ *         - ST_ERROR: hashes diferentes, firmware corrompido
+ *
+ * @note BC-LLR-42, BC-LLR-43, BC-LLR-65
+ */
 static fsm_state_t state_verify_run(void)
 {
     ESP_LOGI(TAG, "RUNNING ST_VERIFY");
@@ -36,6 +63,11 @@ static fsm_state_t state_verify_run(void)
     }
 }
 
+/**
+ * @brief Função de saída do estado VERIFY
+ *
+ * Executa limpeza ao sair do estado (atualmente apenas log).
+ */
 static void state_verify_exit(void)
 {
     ESP_LOGI(TAG, "EXIT ST_VERIFY");

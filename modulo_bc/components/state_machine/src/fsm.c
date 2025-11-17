@@ -1,3 +1,13 @@
+/**
+ * @file fsm.c
+ * @brief Implementação da máquina de estados principal do B/C
+ *
+ * Este arquivo implementa a task principal da FSM, definição de variáveis globais
+ * compartilhadas entre estados, e funções auxiliares para verificação de PN.
+ *
+ * @note BC-LLR-1, BC-LLR-11, BC-LLR-103
+ */
+
 #include "state_machine/fsm.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -28,12 +38,28 @@ const char *SUPPORTED_PNS[SUPPORTED_PNS_COUNT] = {
 
 const char *HW_PN = "EMB-HW-002-021-003"; // PN do hardware atual
 
-/* BC-LLR-34 - Verificação do PN
- Em UPLOAD_PREP, o software do B/C deve verificar se o PN recebido pelo arquivo .LUR está presente na lista local de PNs suportados pelo módulo B/C 
- antes de iniciar o download do arquivo, se nao estiver, deve registrar e interromper execução
+/**
+ * @brief Verifica se um Part Number de software é suportado pelo módulo B/C
+ *
+ * Compara o PN fornecido com a lista de PNs compatíveis (SUPPORTED_PNS).
+ * Utilizado no estado UPLOAD_PREP para validar se o firmware recebido no LUR
+ * é compatível antes de iniciar o download.
+ *
+ * @param[in] pn String contendo o Part Number a ser verificado
+ *
+ * @return
+ *     - true: PN está na lista de PNs suportados
+ *     - false: PN não suportado ou parâmetro NULL
+ *
+ * @note BC-LLR-34, BC-LLR-103
  */
+
 bool is_pn_supported(const char *pn)
 {
+    /* BC-LLR-34 - Verificação do PN
+    Em UPLOAD_PREP, o software do B/C deve verificar se o PN recebido pelo arquivo .LUR está presente na lista local de PNs suportados pelo módulo B/C
+    antes de iniciar o download do arquivo, se nao estiver, deve registrar e interromper execução
+    */
     if (!pn)
         return false;
 
@@ -56,7 +82,7 @@ static void bc_task(void *pvParameters)
     ESP_LOGI(TAG, "Iniciando máquina de estados B/C");
 
     /* BC-LLR-1 - Início no modo operacional
-    Ao boot, o módulo B/C deve inicializar o estado INIT e, 
+    Ao boot, o módulo B/C deve inicializar o estado INIT e,
     após verificações (ver BC-LLR-2) migrar automaticamente para OPERATIONAL se não houver sinalização de manutenção
     */
     fsm_state_t cur = ST_INIT;
@@ -84,11 +110,11 @@ static void bc_task(void *pvParameters)
             next = ops->run();
         }
 
-        /* BC-LLR-22 
+        /* BC-LLR-22
         Caso haja mais de 2 tentativas de carregamento do firmware mal sucedidas por conta
-        de pacotes não reconhecidos ou requisições erradas, o software deve ir para o estado 
+        de pacotes não reconhecidos ou requisições erradas, o software deve ir para o estado
         de ERROR e parar a execução da tarefa*/
-        if(upload_failure_count > MAX_UPLOAD_FAILURES)
+        if (upload_failure_count > MAX_UPLOAD_FAILURES)
         {
             ESP_LOGE(TAG, "Número máximo de falhas de upload excedido (%d) - transicionando para ST_ERROR", upload_failure_count);
             next = ST_ERROR;
@@ -121,13 +147,27 @@ static void bc_task(void *pvParameters)
 
         /* BC-LLR-76 - Intervalo entre ciclos da máquina de estados
         A máquina de estados deve aguardar 50ms entre cada ciclo de execução para
-        permitir que outras tarefas do sistema utilizem o processador e 
+        permitir que outras tarefas do sistema utilizem o processador e
         para processar eventos assíncronos.
         */
         vTaskDelay(pdMS_TO_TICKS(50));
     }
 }
 
+/**
+ * @brief Inicializa a máquina de estados criando a task principal
+ *
+ * Cria uma task FreeRTOS dedicada (bc_task) que executa o loop principal da FSM.
+ * A task inicia automaticamente no estado ST_INIT e continua executando até
+ * que um estado de erro fatal seja alcançado.
+ *
+ * Parâmetros da task:
+ * - Prioridade: 5 (média)
+ * - Stack: 8192 bytes
+ * - Core: tskNO_AFFINITY (qualquer núcleo)
+ *
+ * @note BC-LLR-1
+ */
 void bc_fsm_start(void)
 {
     ESP_LOGI(TAG, "Criando task da máquina de estados");

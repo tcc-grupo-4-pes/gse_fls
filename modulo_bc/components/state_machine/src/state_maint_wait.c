@@ -1,3 +1,15 @@
+/**
+ * @file state_maint_wait.c
+ * @brief Implementação do estado MAINT_WAIT da máquina de estados
+ *
+ * Estado que inicializa o AP Wi-Fi, cria socket UDP e aguarda conexão do GSE.
+ * Processa autenticação e requisições TFTP (RRQ para LUI, WRQ para LUR).
+ *
+ * @note BC-LLR-6, BC-LLR-7, BC-LLR-8, BC-LLR-9, BC-LLR-10, BC-LLR-11, BC-LLR-12,
+ *       BC-LLR-13, BC-LLR-14, BC-LLR-15, BC-LLR-16, BC-LLR-17, BC-LLR-18, BC-LLR-19,
+ *       BC-LLR-20, BC-LLR-51, BC-LLR-52, BC-LLR-53, BC-LLR-54, BC-LLR-88, BC-LLR-89
+ */
+
 #include "state_machine/fsm.h"
 #include "esp_log.h"
 #include "esp_err.h"
@@ -11,16 +23,31 @@ static const char *TAG = "STATE_MAINT_WAIT";
 
 static bool maint_wait_initialized = false;
 
+/**
+ * @brief Função de entrada do estado MAINT_WAIT
+ *
+ * Inicializa o Access Point Wi-Fi e cria o socket UDP para comunicação TFTP.
+ * Esta função só executa a inicialização na primeira vez (idempotente).
+ *
+ * Sequência de inicialização:
+ * 1. Inicializa Wi-Fi SoftAP (SSID, senha, canal 1, IP estático)
+ * 2. Cria socket UDP para TFTP
+ * 3. Configura timeout de 2 segundos no socket
+ * 4. Faz bind na porta 69 (TFTP)
+ * 5. Carrega chaves de autenticação da partição keys
+ *
+ * @note BC-LLR-6, BC-LLR-7, BC-LLR-8, BC-LLR-9, BC-LLR-10, BC-LLR-13, BC-LLR-14, BC-LLR-15, BC-LLR-16
+ */
 static void state_maint_wait_enter(void)
 {
     ESP_LOGI(TAG, "INIT ST_MAINT_WAIT");
 
     /* BC-LLR-6 Criação do ponto de acesso Wifi
-    Ao entrar no estado MAINT_WAIT, o módulo B/C deve inicializar o Wi-Fi em modo Access Point, 
+    Ao entrar no estado MAINT_WAIT, o módulo B/C deve inicializar o Wi-Fi em modo Access Point,
     configurado para operar no canal fixo 1 , somente se ele não tiver sido criado antes */
     if (!maint_wait_initialized)
     {
-        /* BC-LLR -6 - 7 - 8 
+        /* BC-LLR -6 - 7 - 8
         Criação do ponto de acesso Wifi,
         Configurações do WI-FI
         Configuração IP do WI-Fi AP */
@@ -30,7 +57,7 @@ static void state_maint_wait_enter(void)
 
         sock = socket(AF_INET, SOCK_DGRAM, 0);
         /* BC-LLR-13 - Erro ao criar socket
-        No estado MAINT_WAIT caso haja erro ao criar o sock, 
+        No estado MAINT_WAIT caso haja erro ao criar o sock,
         o software do B/C deve ir para o estado de ERROR e parar a execução da tarefa
         */
         if (sock < 0) /* retorna > 0 se sucesso (numero arbitrario do sistema)
@@ -43,16 +70,16 @@ static void state_maint_wait_enter(void)
         /* Configura um timeout (tempo máximo de espera)
         para operações de recepção no socket.
         5 segundos eh o padrao RFC 1350, vamos usar 2 segundos */
-        struct timeval tv;            /* Estrutura para definir o timeout */
-        tv.tv_sec = 2;                /* BC-LLR-16 Tempo de espera em segundos - 2 segundos */
-        tv.tv_usec = 0;               /* BC-LLR-16 Tempo de espera em microsegundos - 0 microsegundos */
+        struct timeval tv; /* Estrutura para definir o timeout */
+        tv.tv_sec = 2;     /* BC-LLR-16 Tempo de espera em segundos - 2 segundos */
+        tv.tv_usec = 0;    /* BC-LLR-16 Tempo de espera em microsegundos - 0 microsegundos */
 
         /* BC-LLR-16 */
         setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
 
-        /* BC-LLR-9 - Abertura do Socket 
-        O software do B/C, no estado MAINT_WAIT após conexão estabelecida com GSE, 
-        deve abrir um socket UDP para comunicação usando o protocolo ARINC615A(implementado via TFTP) na porta 69 
+        /* BC-LLR-9 - Abertura do Socket
+        O software do B/C, no estado MAINT_WAIT após conexão estabelecida com GSE,
+        deve abrir um socket UDP para comunicação usando o protocolo ARINC615A(implementado via TFTP) na porta 69
         para aceitar requisições de transferência
         */
         memset(&server_addr, 0, sizeof(server_addr));    /* zera todos os bits da estrutura */
@@ -61,8 +88,8 @@ static void state_maint_wait_enter(void)
         server_addr.sin_addr.s_addr = htonl(INADDR_ANY); /* Endereço IP do servidor - htonl converte de host byte order para network byte order,
             INADDR_ANY significa que o servidor irá escutar em todas as interfaces de rede disponíveis */
 
-        /* BC-LLR-14 - Erro no bind da porta 69 
-        No estado MAINT_WAIT caso haja falha no bind inicial, 
+        /* BC-LLR-14 - Erro no bind da porta 69
+        No estado MAINT_WAIT caso haja falha no bind inicial,
         o software do B/C deve ir para o estado de ERROR e parar a execução da tarefa
         */
         if (bind(sock, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) /* Associa o socket ao endereço e porta especificados */
@@ -91,16 +118,15 @@ static void state_maint_wait_enter(void)
         return;
     }
 
-
     while (1)
-    {   
+    {
         /* BC-LLR-10 Autenticação de Aplicação Embraer - GSE
-        O software do B/C, no estado MAINT_WAIT após abertura do socket, 
-        deve receber uma chave de autenticação do GSE 
+        O software do B/C, no estado MAINT_WAIT após abertura do socket,
+        deve receber uma chave de autenticação do GSE
         e compara com a chave de autenticação embarcada para autenticar GSE como aplicação Embraer
 
         BC-LLR-11 Autenticação de Aplicação Embraer - B/C
-        O software do B/C, no estado MAINT_WAIT após validação da chave do GSE, 
+        O software do B/C, no estado MAINT_WAIT após validação da chave do GSE,
         deve enviar outra chave atestando aplicação Embraer para o GSE completando o handshake de autenticação
         */
         esp_err_t handshake_result = auth_perform_handshake(sock, &client_addr, &auth_keys);
@@ -131,7 +157,6 @@ static fsm_state_t state_maint_wait_run(void)
         return ST_ERROR;
     }
 
-    
     n = recvfrom(sock, &req, sizeof(req), 0,
                  (struct sockaddr *)&client_addr, &addr_len);
 
@@ -154,7 +179,7 @@ static fsm_state_t state_maint_wait_run(void)
     }
 
     /* BC-LLR-15  Erro de pacotes muito pequenos
-    No estado MAINT_WAIT caso pacotes recebidos sejam menores que 4 bytes(mínimo), 
+    No estado MAINT_WAIT caso pacotes recebidos sejam menores que 4 bytes(mínimo),
     o software deve desconsiderar e esperar novo pacote*/
     if (n < 4) /* tratamento de erro - pacote mínimo nao atingido */
     {
@@ -164,12 +189,12 @@ static fsm_state_t state_maint_wait_run(void)
     }
 
     /* BC-LLR-89 Conversão do OPCODE - Recebimento
-    Ao receber um pacote via TFTP, o software do B/C deve converter o OPCODE do 
+    Ao receber um pacote via TFTP, o software do B/C deve converter o OPCODE do
     formato rede (big-endian) para formato host (little-endian do ESP32).
     */
-    opcode = ntohs(req.opcode); 
+    opcode = ntohs(req.opcode);
 
-    /* BC-LLR-12 - Habilitação da interface de carregamento 
+    /* BC-LLR-12 - Habilitação da interface de carregamento
     O software do B/C, no estado MAINT_WAIT após autenticação de aplicação Embraer, deve esperar
     a requisição de leitura(Read Request - RRQ) do arquivo Load Upload Initialization(LUI) para
     iniciar a sequência de recebimento do novo firmware(ir para o estado UPLOAD_PREP).
@@ -180,8 +205,8 @@ static fsm_state_t state_maint_wait_run(void)
         filename[n - 2] = '\0';
 
         /* BC-LLR-23 Porta Efêmera para transferência
-        O software do módulo B/C deve se comunicar através de uma porta efêmera para transferir 
-        dados conforme descrito no TFTP 
+        O software do módulo B/C deve se comunicar através de uma porta efêmera para transferir
+        dados conforme descrito no TFTP
         */
         struct sockaddr_in original_client_addr = client_addr;
 

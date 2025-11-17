@@ -1,3 +1,13 @@
+/**
+ * @file state_init.c
+ * @brief Implementação do estado INIT da máquina de estados
+ *
+ * Estado responsável por inicializar NVS, partições SPIFFS e chaves de autenticação.
+ * Após inicialização bem-sucedida, transita automaticamente para ST_OPERATIONAL.
+ *
+ * @note BC-LLR-1, BC-LLR-2, BC-LLR-3, BC-LLR-50
+ */
+
 #include "state_machine/fsm.h"
 #include "esp_log.h"
 #include "nvs_flash.h"
@@ -6,18 +16,40 @@
 
 static const char *TAG = "STATE_INIT";
 
+/**
+ * @brief Função de entrada do estado INIT
+ *
+ * Executa log de entrada no estado (atualmente apenas informação).
+ */
 static void state_init_enter(void)
 {
     ESP_LOGI(TAG, "ENTER ST_INIT");
 }
+/**
+ * @brief Função de execução do estado INIT
+ *
+ * Executa a sequência de inicialização do sistema:
+ * 1. Inicializa NVS (Non-Volatile Storage)
+ * 2. Monta partições SPIFFS (firmware e keys)
+ * 3. Escreve chaves estáticas de autenticação
+ *
+ * Após inicialização bem-sucedida, transita automaticamente para ST_OPERATIONAL.
+ * Em caso de erro em qualquer etapa, transita para ST_ERROR.
+ *
+ * @return Próximo estado da FSM:
+ *         - ST_OPERATIONAL: inicialização bem-sucedida
+ *         - ST_ERROR: falha na inicialização
+ *
+ * @note BC-LLR-1, BC-LLR-2, BC-LLR-3, BC-LLR-50
+ */
 static fsm_state_t state_init_run(void)
 {
     ESP_LOGI(TAG, "RUN ST_INIT ");
 
     /* BC-LLR-2 - Inicializações do estado INIT
-    No modo INIT, o software deve executar, sequencialmente 
-    (A) Iniciar NVS 
-    (B) Inicializar SPIFFs 
+    No modo INIT, o software deve executar, sequencialmente
+    (A) Iniciar NVS
+    (B) Inicializar SPIFFs
     (C) Escrever chaves estática de autenticação;
     */
     /* (A) Inicializar NVS */
@@ -26,9 +58,9 @@ static fsm_state_t state_init_run(void)
     /* (B) Inicializar SPIFFs*/
     esp_err_t spiffs_ret_firmware = mount_spiffs("firmware", FIRMWARE_MOUNT_POINT);
     esp_err_t spiffs_ret_keys = mount_spiffs("keys", KEYS_MOUNT_POINT);
-    
+
     /* BC-LLR-3 - Tratamento de erros na inicialização do SPIFFS
-    No estado INIT caso haja erro ao montar a partição, 
+    No estado INIT caso haja erro ao montar a partição,
     o software deve ir para o estado de ERROR e parar a execução
     */
     if (spiffs_ret_firmware != ESP_OK)
@@ -55,8 +87,8 @@ static fsm_state_t state_init_run(void)
     }
 
     /* BC-LLR-1 - Início no modo operacional
-    Ao boot, o módulo B/C deve inicializar o estado INIT e, 
-    após verificações (ver BC-LLR-2) migrar automaticamente para OPERATIONAL 
+    Ao boot, o módulo B/C deve inicializar o estado INIT e,
+    após verificações (ver BC-LLR-2) migrar automaticamente para OPERATIONAL
     se não houver sinalização de manutenção
     */
     ESP_LOGI(TAG, "Inicialização completa - transição para ST_OPERATIONAL");
@@ -64,6 +96,11 @@ static fsm_state_t state_init_run(void)
     return ST_OPERATIONAL;
 }
 
+/**
+ * @brief Função de saída do estado INIT
+ *
+ * Executa limpeza ao sair do estado (atualmente apenas log).
+ */
 static void state_init_exit(void)
 {
     ESP_LOGI(TAG, "EXIT ST_INIT");

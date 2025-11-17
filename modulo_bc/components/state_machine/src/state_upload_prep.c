@@ -1,14 +1,45 @@
+/**
+ * @file state_upload_prep.c
+ * @brief Implementação do estado UPLOAD_PREP da máquina de estados
+ *
+ * Estado que envia o arquivo INIT_LOAD.LUS ao GSE e aguarda a requisição de escrita
+ * do arquivo .LUR contendo os metadados do firmware a ser carregado.
+ *
+ * @note BC-LLR-30, BC-LLR-32, BC-LLR-33, BC-LLR-54, BC-LLR-55, BC-LLR-56, BC-LLR-89
+ */
+
 #include "state_machine/fsm.h"
 #include "esp_log.h"
 #include <errno.h>
 
 static const char *TAG = "STATE_UPLOAD_PREP";
 
+/**
+ * @brief Função de entrada do estado UPLOAD_PREP
+ *
+ * Executa log de entrada no estado (atualmente apenas informação).
+ */
 static void state_upload_prep_enter(void)
 {
     ESP_LOGI(TAG, "INIT ST_UPLOAD_PREP");
 }
 
+/**
+ * @brief Função de execução do estado UPLOAD_PREP
+ *
+ * Prepara o sistema para recebimento de firmware:
+ * 1. Cria e envia arquivo INIT_LOAD.LUS ao GSE
+ * 2. Aguarda requisição WRQ do GSE para envio do .LUR
+ * 3. Valida que a requisição é para arquivo .LUR
+ * 4. Processa o LUR e extrai metadados do firmware
+ * 5. Valida compatibilidade do PN de software
+ *
+ * @return Próximo estado da FSM:
+ *         - ST_UPLOADING: LUR válido e PN compatível
+ *         - ST_ERROR: erro em qualquer etapa
+ *
+ * @note BC-LLR-30, BC-LLR-32, BC-LLR-33, BC-LLR-34, BC-LLR-54, BC-LLR-55, BC-LLR-56, BC-LLR-89
+ */
 static fsm_state_t state_upload_prep_run(void)
 {
     ESP_LOGI(TAG, "RUNNING ST_UPLOAD_PREP");
@@ -16,23 +47,23 @@ static fsm_state_t state_upload_prep_run(void)
     lus_data_t lus_data;
     if (init_lus(&lus_data, ARINC_STATUS_OP_ACCEPTED_NOT_STARTED,
                  "Operation Accepted", 0, "000") != 0)
-    {   
+    {
         /* BC-LLR-54 Erro ao criar o INIT_LOAD.LUS
-        No estado UPLOAD_PREP, caso haja algum erro ao criar o arquivo .LUS, 
+        No estado UPLOAD_PREP, caso haja algum erro ao criar o arquivo .LUS,
         o software deve ir para o estado de ERROR e parar a execução */
         ESP_LOGE(TAG, "Falha ao inicializar LUS inicial");
         return ST_ERROR;
     }
     /* BC-LLR-30 Requisição de escrita do primeiro .LUS
-    Em UPLOAD_PREP após envio do .LUI, o software do B/C 
-    deve criar um arquivo o primeiro arquivo de status de Upload(Load Upload Status - INIT_LOAD.LUS) 
+    Em UPLOAD_PREP após envio do .LUI, o software do B/C
+    deve criar um arquivo o primeiro arquivo de status de Upload(Load Upload Status - INIT_LOAD.LUS)
     fazer uma requisição de escrita(WRQ) para envio para GSE */
     make_wrq(sock, &client_addr, "INIT_LOAD.LUS", &lus_data);
 
     /* BC-LLR-32 Espera do WRQ do arquivo .LUR
-    Em UPLOAD_PREP após envio do .LUS, o software do B/C 
-    deve aguardar o pedido de escrita(WRQ) feito pelo GSE para obter o arquivo Load Uploading Request(.LUR) 
-    para verificar o arquivo que o GSE quer carregar 
+    Em UPLOAD_PREP após envio do .LUS, o software do B/C
+    deve aguardar o pedido de escrita(WRQ) feito pelo GSE para obter o arquivo Load Uploading Request(.LUR)
+    para verificar o arquivo que o GSE quer carregar
     */
     n = recvfrom(sock, &req, sizeof(req), 0,
                  (struct sockaddr *)&client_addr, &addr_len);
@@ -41,12 +72,12 @@ static fsm_state_t state_upload_prep_run(void)
         ESP_LOGE(TAG, "Erro no recvfrom WRQ: errno=%d", errno);
         return ST_ERROR;
     }
-    
+
     /* BC-LLR-56  Erro ao esperar a requisição de escrita do .LUR
-    No estado UPLOAD_PREP, após o envio do primeiro .LUS, 
-    caso seja recebido uma requisição que não seja de escrita do .LUR, 
+    No estado UPLOAD_PREP, após o envio do primeiro .LUS,
+    caso seja recebido uma requisição que não seja de escrita do .LUR,
     o software deve ignorar e esperar uma nova requisição */
-    opcode = ntohs(req.opcode);/*BC-LLR-89*/
+    opcode = ntohs(req.opcode); /*BC-LLR-89*/
     if (opcode == OP_WRQ)
     {
         filename = req.request;
@@ -55,21 +86,21 @@ static fsm_state_t state_upload_prep_run(void)
         handle_wrq(sock, &client_addr, filename, &lur_file);
 
         /* BC-LLR-34 Verificação do PN
-        Em UPLOAD_PREP, o software do B/C deve verificar se o PN recebido pelo arquivo 
-        .LUR está presente na lista local de PNs suportados pelo módulo B/C antes de 
+        Em UPLOAD_PREP, o software do B/C deve verificar se o PN recebido pelo arquivo
+        .LUR está presente na lista local de PNs suportados pelo módulo B/C antes de
         iniciar o download do arquivo, se nao estiver, deve registrar e interromper execução
         */
         if (!is_pn_supported(lur_file.load_part_number))
-        {   
+        {
             ESP_LOGE(TAG, "PN não suportado: %s", lur_file.load_part_number);
             return ST_ERROR;
         }
 
         ESP_LOGI(TAG, "PN %s verificado e suportado", lur_file.load_part_number);
 
-        /* BC-LLR-35 Transição para UPLOADING - Requisição de leitura do firmware 
-        Em UPLOAD_PREP, caso o PN for suportado pelo módulo B/C, 
-        o software deve iniciar uma requisição de leitura do arquivo de nome informado no .LUR 
+        /* BC-LLR-35 Transição para UPLOADING - Requisição de leitura do firmware
+        Em UPLOAD_PREP, caso o PN for suportado pelo módulo B/C,
+        o software deve iniciar uma requisição de leitura do arquivo de nome informado no .LUR
         e transicionar para o estado UPLOADING
         */
         return ST_UPLOADING; // Transição para uploading

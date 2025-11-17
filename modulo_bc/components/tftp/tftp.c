@@ -1,3 +1,18 @@
+/**
+ * @file tftp.c
+ * @brief Implementação do protocolo TFTP para transferência de arquivos ARINC 615A
+ *
+ * Este arquivo implementa as funções de transferência TFTP usadas na comunicação
+ * entre o B/C e o GSE. Inclui suporte a retry automático, cálculo de SHA-256,
+ * validação de espaço em disco e tratamento de erros.
+ *
+ * @note BC-LLR-16, BC-LLR-17, BC-LLR-21, BC-LLR-22, BC-LLR-23, BC-LLR-24, BC-LLR-25,
+ *       BC-LLR-26, BC-LLR-27, BC-LLR-28, BC-LLR-29, BC-LLR-30, BC-LLR-31, BC-LLR-32,
+ *       BC-LLR-33, BC-LLR-34, BC-LLR-35, BC-LLR-36, BC-LLR-37, BC-LLR-61, BC-LLR-89,
+ *       BC-LLR-90, BC-LLR-91, BC-LLR-92, BC-LLR-93, BC-LLR-94, BC-LLR-95, BC-LLR-96,
+ *       BC-LLR-97, BC-LLR-98, BC-LLR-99, BC-LLR-100, BC-LLR-101, BC-LLR-102, BC-LLR-103
+ */
+
 #include "tftp.h"
 #include "storage.h"           // open_temp_file, FIRMWARE_MOUNT_POINT
 #include "state_machine/fsm.h" // upload_failure_count
@@ -18,6 +33,27 @@
 #define MIN_AVAILABLE_SPACE 500000 // Para evitar Page Fault
 static const char *TAG = "tftp";
 
+/**
+ * @brief Processa Read Request do GSE e envia arquivo LUI
+ *
+ * Chamada quando o GSE envia RRQ solicitando o arquivo .LUI (Load Upload Initialization).
+ * Cria socket efêmero (TID), gera o arquivo LUI com status de operação aceita, e transmite
+ * via DATA packet. Implementa retry automático (1 tentativa) em caso de timeout na recepção do ACK.
+ *
+ * Sequência de operação:
+ * 1. Valida que o arquivo solicitado é .LUI
+ * 2. Cria socket de transferência com porta efêmera (TID)
+ * 3. Inicializa estrutura LUI com status ARINC_STATUS_OP_ACCEPTED_NOT_STARTED
+ * 4. Envia DATA packet (bloco 1) contendo o LUI
+ * 5. Aguarda ACK do bloco 1 com timeout e retry automático
+ * 6. Fecha socket de transferência
+ *
+ * @param[in] sock Socket UDP principal do servidor TFTP
+ * @param[in] client Endereço do cliente GSE que fez a requisição
+ * @param[in] filename Nome do arquivo solicitado (deve conter ".LUI")
+ *
+ * @note BC-LLR-21, BC-LLR-22, BC-LLR-23, BC-LLR-24, BC-LLR-27, BC-LLR-29, BC-LLR-52, BC-LLR-53, BC-LLR-89, BC-LLR-90
+ */
 void handle_rrq(int sock, struct sockaddr_in *client, char *filename)
 {
     ESP_LOGI(TAG, "Read Request(GSE requisita): %s", filename);
@@ -115,7 +151,7 @@ void handle_rrq(int sock, struct sockaddr_in *client, char *filename)
             break;
         }
         /* BC-LLR-29 Retransmissão de pacotes TFTP
-        Em caso de ACK não recebido ao enviar um pacote, 
+        Em caso de ACK não recebido ao enviar um pacote,
         o software do B/C deve retransmitir o pacote somente 1 vez */
         if ((errno == EAGAIN || errno == EWOULDBLOCK) && retries < TFTP_RETRY_LIMIT)
         {
@@ -151,6 +187,28 @@ void handle_rrq(int sock, struct sockaddr_in *client, char *filename)
     ESP_LOGI(TAG, "RRQ concluido, socket de transferência fechado");
 }
 
+/**
+ * @brief Processa Write Request do GSE e recebe arquivo LUR
+ *
+ * Chamada quando o GSE envia WRQ solicitando envio do arquivo .LUR (Load Upload Request).
+ * Cria socket efêmero (TID), envia ACK(0) e recebe os blocos DATA do LUR até o último bloco
+ * (menor que 512 bytes). Após recepção completa, parseia o LUR para extrair metadados do firmware.
+ *
+ * Sequência de operação:
+ * 1. Valida que o arquivo é .LUR
+ * 2. Cria socket de transferência com porta efêmera (TID)
+ * 3. Envia ACK(0) para iniciar transferência
+ * 4. Recebe blocos DATA sequencialmente, enviando ACK para cada
+ * 5. Armazena dados em buffer até receber bloco final
+ * 6. Parseia buffer para extrair informações do LUR (PN, filename, etc)
+ *
+ * @param[in] sock Socket UDP principal do servidor TFTP
+ * @param[in] client Endereço do cliente GSE que fez a requisição
+ * @param[in] filename Nome do arquivo a ser recebido 
+ * @param[out] lur_file Estrutura para armazenar os dados parseados do LUR
+ *
+ * @note BC-LLR-18, BC-LLR-23, BC-LLR-27, BC-LLR-28, BC-LLR-51, BC-LLR-57, BC-LLR-89, BC-LLR-90
+ */
 void handle_wrq(int sock, struct sockaddr_in *client, char *filename, lur_data_t *lur_file)
 {
     ESP_LOGI(TAG, "Write Request (GSE envia): %s", filename);
@@ -274,7 +332,26 @@ void handle_wrq(int sock, struct sockaddr_in *client, char *filename, lur_data_t
     ESP_LOGI(TAG, "WRQ concluido, socket de transferência fechado");
 }
 
-/* BC-LLR-30 */
+/**
+ * @brief Envia Write Request ao GSE para transmitir arquivo LUS
+ *
+ * Chamada pelo B/C para iniciar transferência do arquivo .LUS (Load Upload Status) ao GSE.
+ * Envia WRQ, aguarda ACK(0) da porta efêmera do GSE, transmite DATA packet único e aguarda
+ * ACK final. Implementa retry automático (1 tentativa) em ambos os pontos de espera.
+ *
+ * Sequência de operação:
+ * 1. Envia WRQ solicitando escrita do arquivo LUS
+ * 2. Aguarda ACK(0) do GSE (porta efêmera/TID) com retry automático
+ * 3. Envia DATA packet (bloco 1) contendo estrutura lus_data_t completa
+ * 4. Aguarda ACK do bloco 1 com retry automático
+ *
+ * @param[in] sock Socket UDP para comunicação TFTP
+ * @param[in] client_addr Endereço do servidor GSE destino
+ * @param[in] lus_filename Nome do arquivo LUS (ex: "INIT_LOAD.LUS", "FINAL_LOAD.LUS")
+ * @param[in] lus_data Ponteiro para estrutura contendo dados do LUS (status, progresso, etc)
+ *
+ * @note BC-LLR-23, BC-LLR-27, BC-LLR-29, BC-LLR-30, BC-LLR-51, BC-LLR-69, BC-LLR-89, BC-LLR-90
+ */
 void make_wrq(int sock, struct sockaddr_in *client_addr, const char *lus_filename, const lus_data_t *lus_data)
 {
     ESP_LOGI(TAG, "Iniciando WRQ para envio de %s", lus_filename);
@@ -393,6 +470,36 @@ void make_wrq(int sock, struct sockaddr_in *client_addr, const char *lus_filenam
     ESP_LOGI(TAG, "Arquivo LUS enviado com sucesso");
 }
 
+/**
+ * @brief Envia Read Request ao GSE para receber arquivo de firmware
+ *
+ * Chamada pelo B/C para solicitar download de firmware do GSE. Envia RRQ, recebe blocos DATA
+ * sequencialmente, calcula SHA-256 incremental, valida PN de hardware no primeiro pacote,
+ * verifica espaço disponível continuamente, e salva dados em temp.bin.
+ *
+ * Sequência de operação:
+ * 1. Abre arquivo temporário (temp.bin) para escrita
+ * 2. Envia RRQ solicitando arquivo de firmware
+ * 3. Inicializa contexto SHA-256 para cálculo incremental
+ * 4. Loop de recepção de blocos:
+ *    - Recebe DATA packet do TID efêmero do GSE
+ *    - No primeiro bloco: valida PN de hardware (offset 20, 20 bytes)
+ *    - Verifica espaço disponível na partição
+ *    - Escreve dados em temp.bin
+ *    - Atualiza cálculo SHA-256
+ *    - Envia ACK do bloco
+ * 5. Finaliza SHA-256 e armazena hash calculado
+ * 6. Fecha arquivo temporário
+ *
+ * @param[in] sock Socket UDP para comunicação TFTP
+ * @param[in] client_addr Endereço do servidor GSE
+ * @param[in] filename Nome do arquivo de firmware solicitado
+ * @param[out] hash Buffer para armazenar o SHA-256 calculado (32 bytes)
+ *
+ * @note BC-LLR-18, BC-LLR-23, BC-LLR-28, BC-LLR-36, BC-LLR-37, BC-LLR-38, BC-LLR-39,
+ *       BC-LLR-59, BC-LLR-60, BC-LLR-61, BC-LLR-62, BC-LLR-89, BC-LLR-94, BC-LLR-95,
+ *       BC-LLR-96, BC-LLR-97, BC-LLR-98, BC-LLR-99, BC-LLR-100, BC-LLR-103, BC-LLR-104
+ */
 void make_rrq(int sock, struct sockaddr_in *client_addr, const char *filename, unsigned char *hash)
 {
     ESP_LOGI(TAG, "Iniciando RRQ para %s", filename);

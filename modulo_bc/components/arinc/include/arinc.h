@@ -8,9 +8,9 @@
  *
  * Inclui definições para:
  * - Códigos de status de operação (LUI/LUS)
- * - Estrutura de arquivo LUI (Load Upload Information)
+ * - Estrutura de arquivo LUI (Load Upload Initialization)
  * - Estrutura de arquivo LUS (Load Upload Status)
- * - Estrutura de arquivo LUR (Load Upload Request)
+ * - Estrutura de arquivo LUR 
  *
  * @note Requisitos implementados: BC-LLR-25, BC-LLR-26, BC-LLR-31, BC-LLR-33
  */
