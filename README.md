@@ -68,3 +68,76 @@ Responsável por:
 5. Envia o arquivo FLS via TCP.  
 6. O módulo embarcado valida o pacote e confirma o carregamento.  
 7. O GSE exibe o status final da operação.
+
+---
+
+## Procedimentos de Execução
+
+O repositório agrupa dois projetos principais:
+
+- `gse/`: aplicação GSE em Python/Qt (frontend + backend + suíte de testes).
+- `modulo_bc/`: firmware do módulo embarcado baseado no ESP-IDF.
+
+As seções abaixo detalham como preparar, executar e validar cada um dos módulos.
+
+### GSE (Python/Qt)
+
+#### Pré-requisitos
+
+- Windows 11 ou Linux com Python 3.12 instalado.
+- Git, Visual Studio Code (recomendado) e ferramentas de linha de comando PySide6.
+
+#### Passos
+
+1. Entre na pasta `gse/` e crie um ambiente virtual:
+	```powershell
+	cd gse
+	python -m venv .venv
+	.\.venv\Scripts\Activate.ps1
+	```
+2. Instale as dependências do projeto:
+	```powershell
+	pip install -r requirements.txt
+	```
+3. Execute a aplicação GSE com interface Qt:
+	```powershell
+	python main.py
+	```
+4. Gere um executável standalone com PyInstaller,
+	nesse arquivo, estão descritas as configurações para geração do executável:
+	```powershell
+	pyinstaller .\main.spec
+	```
+5. Execute a suíte de testes (pytest já configurado em `pytest.ini`):
+	```powershell
+	pytest
+	# ou
+	pytest -m <path_arquivo_teste>
+	```
+
+### Módulo BC (ESP-IDF)
+
+#### Pré-requisitos
+
+- ESP-IDF 5.4 instalado.
+- Ferramentas USB/serial para comunicação com o ESP32.
+
+#### Passos 
+
+0. Para todas operações a nível de target-Hardware B/C, utilizar terminal integrado ESP-IDF
+1. Ative o ambiente ESP-IDF na pasta `modulo_bc/`, basta abrir o vscode nessa pasta:
+	```powershell
+	cd modulo_bc
+	# Ajuste o caminho para o script export do seu ESP-IDF
+	C:\esp-idf\export.ps1
+	```
+2. Configure o alvo e compile:
+	```powershell
+	idf.py set-target esp32
+	idf.py build
+	```
+3. Faça o flash e abra o monitor serial:
+	```powershell
+	idf.py flash
+	idf.py monitor
+	```
