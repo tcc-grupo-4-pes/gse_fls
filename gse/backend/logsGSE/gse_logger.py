@@ -14,9 +14,9 @@ eventos, mensagens de depuração e rastreamento de fluxo durante a execução
 da aplicação.
 """
 
-import os
 import datetime
 from typing import TextIO
+from pathlib import Path
 
 
 class GseLogger:
@@ -31,7 +31,7 @@ class GseLogger:
     interrompa sua execução caso o log não possa ser criado.
     """
 
-    LOG_DIR = "logs"
+    LOG_DIR = Path(__file__).resolve().parents[2] / "logs"
 
     def __init__(self):
         """
@@ -58,14 +58,15 @@ class GseLogger:
         continuar sessões interrompidas ou acrescentar novas entradas.
         """
         try:
-            log_dir_path = os.path.abspath(self.LOG_DIR)
-            os.makedirs(log_dir_path, exist_ok=True)
+            log_dir_path = self.LOG_DIR
+            log_dir_path.mkdir(parents=True, exist_ok=True)
 
             now_str = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
             filename = f"GSE_Sessao_{now_str}.txt"
-            self.log_path = os.path.join(log_dir_path, filename)
+            log_path = log_dir_path / filename
 
-            self.log_file = open(self.log_path, "a", encoding="utf-8")
+            self.log_path = str(log_path)
+            self.log_file = log_path.open("a", encoding="utf-8")
 
             print(f"Sessão de log iniciada. Arquivo: {self.log_path}")
 
