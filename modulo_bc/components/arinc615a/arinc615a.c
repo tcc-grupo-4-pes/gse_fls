@@ -12,7 +12,7 @@
  * @note Requisitos implementados: BC-LLR-24, BC-LLR-33, BC-LLR-52, BC-LLR-89, BC-LLR-90
  */
 
-#include "arinc.h"
+#include "arinc615a.h"
 
 #include <string.h>    // memset, memcpy, strlen
 #include <arpa/inet.h> // htonl, htons, ntohl, ntohs

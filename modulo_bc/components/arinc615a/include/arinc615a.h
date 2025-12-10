@@ -1,5 +1,5 @@
 /**
- * @file arinc.h
+ * @file arinc615a.h
  * @brief Definições de estruturas e funções do protocolo ARINC 615A
  *
  * Este arquivo define os tipos de dados e funções para manipulação de arquivos

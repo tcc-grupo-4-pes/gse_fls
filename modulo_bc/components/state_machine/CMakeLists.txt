@@ -11,5 +11,5 @@ idf_component_register(
          "src/state_teardown.c"
          "src/state_error.c"
     INCLUDE_DIRS "include"
-    REQUIRES "freertos" "esp_common" "button_handler" "nvs_flash" "storage" "wifi" "arinc" "tftp" "auth"
+    REQUIRES "freertos" "esp_common" "button_handler" "nvs_flash" "storage" "wifi" "arinc615a" "tftp" "auth"
 )

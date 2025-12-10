@@ -6,7 +6,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 
-#include "arinc.h"
+#include "arinc615a.h"
 
 // TFTP constants
 #define TFTP_PORT 69       /**< Porta padrão do protocolo TFTP */

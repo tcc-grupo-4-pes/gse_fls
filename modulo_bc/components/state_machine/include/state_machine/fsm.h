@@ -5,7 +5,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include "tftp.h"
-#include "arinc.h"
+#include "arinc615a.h"
 #include "auth.h"
 
 /**
